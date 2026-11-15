@@ -1,22 +1,32 @@
 """Record real GamePackets during an RLBot match and replay them offline through the deployment pipeline.
 
-File format: a header line `BOTCORE-PACKETS 1\\n` followed by records of
-(uint32 little-endian length, packed flat.GamePacket bytes). FieldInfo is stored as the first record with a
-length prefix and a marker byte so a recording is self-contained.
+File format (version 2): the header line `BOTCORE-PACKETS 2\n`, then records of
+(1-byte kind, uint32 little-endian length, payload):
+
+* F  packed flat.FieldInfo
+* M  UTF-8 JSON metadata (team, index, bundle hash, ...)
+* P  float64 wall-clock seconds (time.perf_counter at arrival) + packed flat.GamePacket
+* D  decision: int64 packet frame, int64 state tick, int32 action index, float32 policy ms, float32[obs] observation
+* T  callback timing: int64 frame, float32 full-callback ms, int32 packets processed, uint8 fallback flag
+
+A truncated final record (e.g. the process was killed) is ignored.
 """
 
 from __future__ import annotations
 
+import json
 import struct
+import time
+from dataclasses import dataclass, field as dc_field
 from pathlib import Path
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 import numpy as np
 from rlbot import flat
 
-MAGIC = b"BOTCORE-PACKETS 1\n"
-_KIND_FIELD = b"F"
-_KIND_PACKET = b"P"
+MAGIC = b"BOTCORE-PACKETS 2\n"
+_DEC_HEAD = struct.Struct("<qqif")
+_TIMING = struct.Struct("<qfiB")
 
 
 class PacketRecorder:
@@ -31,37 +41,77 @@ class PacketRecorder:
         self._f.write(kind + struct.pack("<I", len(payload)) + payload)
 
     def field_info(self, field: flat.FieldInfo) -> None:
-        self._write(_KIND_FIELD, field.pack())
+        self._write(b"F", field.pack())
 
-    def packet(self, packet: flat.GamePacket) -> None:
-        self._write(_KIND_PACKET, packet.pack())
+    def meta(self, data: dict) -> None:
+        self._write(b"M", json.dumps(data).encode())
+
+    def packet(self, packet: flat.GamePacket, wall: Optional[float] = None) -> None:
+        self._write(b"P", struct.pack("<d", time.perf_counter() if wall is None else wall) + packet.pack())
         self.count += 1
         if self.count % 1200 == 0:
             self._f.flush()
+
+    def decision(self, frame: int, tick: int, action: int, policy_ms: float, obs: np.ndarray) -> None:
+        self._write(b"D", _DEC_HEAD.pack(int(frame), int(tick), int(action), float(policy_ms))
+                    + np.asarray(obs, dtype="<f4").tobytes())
+
+    def timing(self, frame: int, callback_ms: float, n_packets: int, fallback: bool) -> None:
+        self._write(b"T", _TIMING.pack(int(frame), float(callback_ms), int(n_packets), int(fallback)))
 
     def close(self) -> None:
         self._f.close()
 
 
-def read_recording(path: str | Path) -> Tuple[Optional[flat.FieldInfo], Iterator[flat.GamePacket]]:
+@dataclass
+class Recording:
+    field: Optional[flat.FieldInfo] = None
+    meta: dict = dc_field(default_factory=dict)
+    packet_wall: List[float] = dc_field(default_factory=list)
+    packets: List[flat.GamePacket] = dc_field(default_factory=list)
+    decision_frame: List[int] = dc_field(default_factory=list)
+    decision_tick: List[int] = dc_field(default_factory=list)
+    decision_action: List[int] = dc_field(default_factory=list)
+    decision_ms: List[float] = dc_field(default_factory=list)
+    decision_obs: List[np.ndarray] = dc_field(default_factory=list)
+    timing: List[tuple] = dc_field(default_factory=list)  # (frame, callback ms, packets processed, fallback)
+
+
+def load_recording(path: str | Path) -> Recording:
     data = Path(path).read_bytes()
     if not data.startswith(MAGIC):
-        raise ValueError(f"{path} is not a BotCore packet recording")
+        raise ValueError(f"{path} is not a BotCore packet recording (version 2)")
+    rec = Recording()
     offset = len(MAGIC)
-    field = None
-    packets = []
     while offset + 5 <= len(data):
         kind = data[offset:offset + 1]
         (length,) = struct.unpack("<I", data[offset + 1:offset + 5])
         payload = data[offset + 5:offset + 5 + length]
         if len(payload) < length:
-            break  # truncated tail (recording interrupted); ignore the partial record
+            break
         offset += 5 + length
-        if kind == _KIND_FIELD:
-            field = flat.FieldInfo.unpack(payload)
-        elif kind == _KIND_PACKET:
-            packets.append(flat.GamePacket.unpack(payload))
-    return field, iter(packets)
+        if kind == b"F":
+            rec.field = flat.FieldInfo.unpack(payload)
+        elif kind == b"M":
+            rec.meta.update(json.loads(payload.decode()))
+        elif kind == b"P":
+            rec.packet_wall.append(struct.unpack("<d", payload[:8])[0])
+            rec.packets.append(flat.GamePacket.unpack(payload[8:]))
+        elif kind == b"D":
+            frame, tick, action, ms = _DEC_HEAD.unpack(payload[:_DEC_HEAD.size])
+            rec.decision_frame.append(frame)
+            rec.decision_tick.append(tick)
+            rec.decision_action.append(action)
+            rec.decision_ms.append(ms)
+            rec.decision_obs.append(np.frombuffer(payload[_DEC_HEAD.size:], dtype="<f4").copy())
+        elif kind == b"T":
+            rec.timing.append(_TIMING.unpack(payload))
+    return rec
+
+
+def read_recording(path: str | Path) -> Tuple[Optional[flat.FieldInfo], Iterator[flat.GamePacket]]:
+    rec = load_recording(path)
+    return rec.field, iter(rec.packets)
 
 
 def replay(path: str | Path, bundle_dir: str | Path, device: str = "cpu", agent_index: int = 0, log=print) -> dict:
@@ -71,8 +121,6 @@ def replay(path: str | Path, bundle_dir: str | Path, device: str = "cpu", agent_
     non-finite observation values and the largest absolute observation value (training inputs are mostly within
     a few units; much larger values point at a unit or frame mismatch).
     """
-    import time
-
     from botcore.deploy.packets import CompatObsPipeline
     from botcore.export import PolicyRunner, load_bundle
 

@@ -1,0 +1,63 @@
+# Experiment M2 cell D (docs/EXPERIMENT_M2.md). Derived from configs/default.toml; only lr and goal weights vary.
+# The run seed is set on the command line by scripts/run_m2.py (101 and 202).
+[run]
+name = "m2-D"
+seed = 101
+total_iterations = 160
+stage = "s1-contact"
+
+[env]
+team_size = 1
+action_repeat = 8
+rlbot_delay = true
+no_touch_timeout_seconds = 30.0
+episode_timeout_seconds = 300.0
+
+[env.scenario_weights]
+kickoff = 0.50
+open_play = 0.20
+shot = 0.08
+save = 0.08
+low_boost_defence = 0.04
+recovery = 0.05
+aerial = 0.05
+
+[rewards.weights]
+goal_scored = 3.0
+goal_conceded = 3.0
+ball_touch = 0.5
+velocity_to_ball = 0.5
+ball_to_goal = 1.5
+boost_economy = 0.1
+
+[model]
+kind = "mlp"
+actor_layers = [512, 512, 512]
+critic_layers = [512, 512, 512]
+
+[ppo]
+gamma = 0.99
+gae_lambda = 0.95
+n_epochs = 2
+batch_size = 24576
+n_minibatches = 1
+actor_lr = 3e-4
+critic_lr = 3e-4
+ent_coef = 0.01
+clip_range = 0.2
+max_grad_norm = 0.5
+standardize_returns = true
+reward_clip = 10.0
+
+[collect]
+n_workers = 12
+envs_per_worker = 6
+rollout_steps = 512
+
+[self_play]
+frozen_opponent_fraction = 0.0
+snapshot_every_iterations = 40
+
+[checkpoint]
+save_every_iterations = 40
+keep_last = 10

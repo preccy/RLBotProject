@@ -200,3 +200,35 @@ def test_packet_recording_round_trip_and_replay(tmp_path):
     bundle = write_bundle(tmp_path / "b", build_actor(arch, S.OBS_SIZE, 90), arch, 8, True, {})
     report = replay(tmp_path / "match.bcp", bundle, log=lambda *_: None)
     assert report["decisions"] == 60 and report["non_finite_obs"] == 0
+
+
+def test_live_report_runs_on_a_synthetic_session(tmp_path):
+    from rlbot import flat as F
+
+    from botcore.deploy.live_report import live_report
+    from botcore.deploy.recording import PacketRecorder
+
+    env = make_env(1, seed=2, scenario_weights={"kickoff": 1.0})
+    env.reset()
+    for team, pid, agent in ((0, 3, "blue-0"), (1, 9, "orange-0")):
+        rec = PacketRecorder(tmp_path / f"botcore-team{team}-index{team}.bcp")
+        rec.field_info(field_info())
+        rec.meta({"team": team, "index": team, "player_id": pid})
+        pipe = CompatObsPipeline(field_info())
+        for i in range(40):
+            phase = F.MatchPhase.Kickoff if i < 20 else F.MatchPhase.Active
+            pkt = state_to_packet(env.state, 100 + 8 * i, {"blue-0": 3, "orange-0": 9}, phase=phase)
+            rec.packet(pkt, wall=i * 8 / 120)
+            pipe.update(pkt)
+            rec.decision(100 + 8 * i, 100 + 8 * i, 8, 0.2, pipe.obs(pid))
+            rec.timing(100 + 8 * i, 0.4, 1, False)
+            if i == 0:
+                env.step({a: np.array([8]) for a in env.agents})
+        rec.close()
+    report = live_report(tmp_path, None, log=lambda *_: None)
+    blue = report["bots"]["botcore-team0-index0"]
+    orange = report["bots"]["botcore-team1-index1"]
+    assert blue["kickoff_world_y"]["consistent"] and orange["kickoff_world_y"]["consistent"]
+    assert blue["orientation_at_kickoff"]["all_in_own_half_in_team_frame"]
+    assert orange["orientation_at_kickoff"]["all_in_own_half_in_team_frame"]
+    assert blue["callback_ms"]["over_6ms"] == 0 and blue["applied_inputs"]["fraction_matching_action_table"] == 1.0

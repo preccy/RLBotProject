@@ -45,7 +45,7 @@ def cmd_train(args) -> int:
     from botcore.config import load_config
     from botcore.trainer import start_run
 
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, {"run": {"seed": args.seed}} if args.seed is not None else None)
     name = args.name or f"{cfg.run.name}-{time.strftime('%Y%m%d-%H%M%S')}"
     cfg.run.name = name
     run_dir = ROOT / cfg.run.runs_dir / name
@@ -190,6 +190,14 @@ def cmd_replay(args) -> int:
     return 0
 
 
+def cmd_live_report(args) -> int:
+    from botcore.deploy.live_report import live_report
+
+    bundle = _resolve_policy(args.policy) if args.policy else ROOT / "bot" / "model"
+    live_report(Path(args.dir), bundle if (Path(bundle) / "manifest.json").is_file() else None)
+    return 0
+
+
 def cmd_obs_doc(args) -> int:
     from botcore.obs.spec import render_markdown
 
@@ -228,6 +236,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--config", default=str(ROOT / "configs" / "default.toml"))
     s.add_argument("--name", help="run name (default: <config run.name>-<timestamp>)")
     s.add_argument("--iterations", type=int, help="stop after this many iterations (default: run.total_iterations)")
+    s.add_argument("--seed", type=int, help="override [run] seed")
     s.set_defaults(fn=cmd_train)
 
     s = sub.add_parser("resume", help="resume a run from its latest (or a given) checkpoint")
@@ -298,6 +307,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--device", default="cpu")
     s.add_argument("--player", type=int, default=0, help="index into packet.players of the car to evaluate")
     s.set_defaults(fn=cmd_replay)
+
+    s = sub.add_parser("live-report", help="analyse a BOTCORE_LIVE_DIR folder from a real RLBot match")
+    s.add_argument("--dir", required=True)
+    s.add_argument("--policy", help="bundle used for the simulator reference (default bot\model)")
+    s.set_defaults(fn=cmd_live_report)
 
     s = sub.add_parser("obs-doc", help="regenerate docs/OBSERVATION_SPEC.md")
     s.set_defaults(fn=cmd_obs_doc)

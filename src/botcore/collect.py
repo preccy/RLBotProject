@@ -272,6 +272,7 @@ class Collector:
 @dataclass
 class OpenTrajectory:
     agent_id: str
+    env_index: int = -1
     obs: List[np.ndarray] = field(default_factory=list)
     actions: List[np.ndarray] = field(default_factory=list)
     log_probs: List[float] = field(default_factory=list)
@@ -281,6 +282,7 @@ class OpenTrajectory:
 @dataclass
 class ClosedTrajectory:
     agent_id: str
+    env_index: int
     obs: List[np.ndarray]
     actions: List[np.ndarray]
     log_probs: np.ndarray
@@ -323,7 +325,7 @@ class RolloutBuffer:
 
     def _new_all(self) -> None:
         for i, j in self.learner_slots:
-            self.open[(i, j)] = OpenTrajectory(self.agents[j])
+            self.open[(i, j)] = OpenTrajectory(self.agents[j], i)
 
     def record(self, obs: np.ndarray, actions: np.ndarray, log_probs: np.ndarray, result: StepResult,
                env_indices: Optional[np.ndarray] = None) -> None:
@@ -350,10 +352,10 @@ class RolloutBuffer:
         traj = self.open[slot]
         if traj.obs:
             self.closed.append(ClosedTrajectory(
-                traj.agent_id, traj.obs, traj.actions, np.asarray(traj.log_probs, dtype=np.float32),
+                traj.agent_id, traj.env_index, traj.obs, traj.actions, np.asarray(traj.log_probs, dtype=np.float32),
                 traj.rewards, final_obs, truncated,
             ))
-        self.open[slot] = OpenTrajectory(traj.agent_id)
+        self.open[slot] = OpenTrajectory(traj.agent_id, traj.env_index)
 
     def finish(self, current_obs: np.ndarray) -> List[ClosedTrajectory]:
         """End of rollout: cut every unfinished trajectory and bootstrap it from the observation the policy

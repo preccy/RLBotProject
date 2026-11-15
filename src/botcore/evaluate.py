@@ -53,6 +53,8 @@ class MatchResult:
     goals_orange: int
     seconds_played: float
     overtime: bool
+    # behaviour diagnostics per colour: {"blue": {...}, "orange": {...}} (not used for judging strength)
+    behaviour: Dict[str, Dict[str, float]] = None
 
     def score_for(self, side: str) -> float:
         mine, theirs = (self.goals_blue, self.goals_orange) if self.blue == side else (self.goals_orange, self.goals_blue)
@@ -105,6 +107,8 @@ def play_match(seed: int, blue: Side, orange: Side, blue_label: str, rules: Matc
     overtime_ticks = int(round(rules.overtime_max_seconds * C.TICKS_PER_SECOND))
     ticks = 0
     overtime = False
+    acc = {t: {"touches": 0.0, "speed": 0.0, "ball_dist": 0.0, "airborne": 0.0, "boost": 0.0, "supersonic": 0.0,
+               "n": 0} for t in (C.BLUE_TEAM, C.ORANGE_TEAM)}
     while True:
         actions = {}
         for team, team_agents in by_team.items():
@@ -113,6 +117,17 @@ def play_match(seed: int, blue: Side, orange: Side, blue_label: str, rules: Matc
                 actions[a] = np.array([idx])
         obs, _, terminated, _ = env.step(actions)
         ticks += action_repeat
+        state = env.state
+        ball = np.asarray(state.ball.position)
+        for a in agents:
+            car, d = state.cars[a], acc[teams[a]]
+            d["touches"] += float(car.ball_touches > 0)
+            d["speed"] += float(np.linalg.norm(car.physics.linear_velocity))
+            d["ball_dist"] += float(np.linalg.norm(np.asarray(car.physics.position) - ball))
+            d["airborne"] += float(not car.on_ground)
+            d["boost"] += float(car.boost_amount)
+            d["supersonic"] += float(car.is_supersonic)
+            d["n"] += 1
         if any(terminated.values()):
             goals[env.state.scoring_team] += 1
             if overtime:
@@ -125,7 +140,16 @@ def play_match(seed: int, blue: Side, orange: Side, blue_label: str, rules: Matc
         if overtime and ticks >= regulation_ticks + overtime_ticks:
             break
     env.close()
-    return MatchResult(seed, blue_label, goals[C.BLUE_TEAM], goals[C.ORANGE_TEAM], ticks / C.TICKS_PER_SECOND, overtime)
+    minutes = ticks / C.TICKS_PER_SECOND / 60.0
+    behaviour = {}
+    for team, name in ((C.BLUE_TEAM, "blue"), (C.ORANGE_TEAM, "orange")):
+        d, n = acc[team], max(1, acc[team]["n"])
+        cars = len(by_team[team])
+        behaviour[name] = {"touch_decisions_per_min": d["touches"] / cars / minutes, "mean_speed": d["speed"] / n,
+                           "mean_ball_distance": d["ball_dist"] / n, "airborne_fraction": d["airborne"] / n,
+                           "mean_boost": d["boost"] / n, "supersonic_fraction": d["supersonic"] / n}
+    return MatchResult(seed, blue_label, goals[C.BLUE_TEAM], goals[C.ORANGE_TEAM], ticks / C.TICKS_PER_SECOND, overtime,
+                       behaviour)
 
 
 def _play_job(args) -> MatchResult:
@@ -167,7 +191,19 @@ def summarise(results: List[MatchResult], seeds: List[int]) -> dict:
         "overtime_matches": int(sum(r.overtime for r in results)),
         "A_score_as_blue": float(np.mean([r.score_for("A") for r in results if r.blue == "A"])),
         "A_score_as_orange": float(np.mean([r.score_for("A") for r in results if r.blue == "B"])),
+        "decisive_pairs": int(sum(abs(v - 0.5) > 1e-9 for v in pair_scores)),
+        "behaviour": _behaviour_summary(results),
     }
+
+
+def _behaviour_summary(results: List[MatchResult]) -> dict:
+    """Mean behaviour diagnostics for side A and side B across matches (diagnostic only)."""
+    out = {}
+    for side in ("A", "B"):
+        rows = [r.behaviour["blue" if r.blue == side else "orange"] for r in results if r.behaviour]
+        if rows:
+            out[side] = {k: float(np.mean([row[k] for row in rows])) for k in rows[0]}
+    return out
 
 
 def evaluate(a: Side, b: Side, rules: MatchRules, n_pairs: int, workers: Optional[int] = None,
