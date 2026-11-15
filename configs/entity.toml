@@ -1,0 +1,23 @@
+# Experimental: the masked entity-attention encoder (same obs-v1 contract, NOT checkpoint-compatible with MLP runs).
+# Use for the MLP-vs-entity comparison experiment described in docs/DESIGN.md.
+
+[run]
+name = "s1-entity"
+seed = 1
+stage = "s1-contact"
+
+[model]
+kind = "entity"
+embed_dim = 128
+n_heads = 4
+n_attention_layers = 2
+head_layers = [256, 256]
+
+[collect]
+n_workers = 12
+envs_per_worker = 6
+rollout_steps = 512
+
+[ppo]
+batch_size = 24576
+n_minibatches = 4             # gradient accumulation: one 24k batch needs ~10 GB VRAM in a single pass

@@ -1,0 +1,15 @@
+#:schema https://rlbot.org/schemas/agent.json
+[settings]
+name = "BotCore"
+agent_id = "local/botcore"
+# Run from this folder (root_dir defaults to the folder containing this file) with the project venv.
+run_command = "..\\.venv\\Scripts\\python.exe bot.py"
+run_command_linux = "../.venv/bin/python bot.py"
+
+[details]
+description = "PPO bot trained in RocketSim with RLGym v2 (offline use only)."
+fun_fact = "Sees the pitch through a versioned 276-number observation contract."
+source_link = ""
+developer = "local"
+language = "python"
+tags = ["1v1"]

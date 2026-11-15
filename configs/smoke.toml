@@ -1,0 +1,32 @@
+# Plumbing check only: tiny rollouts, small network, a frozen-opponent env so that code path runs too.
+# Proves the loop works end to end; says nothing about playing strength.
+[run]
+name = "smoke"
+seed = 7
+total_iterations = 3
+
+[model]
+actor_layers = [64, 64]
+critic_layers = [64, 64]
+
+[collect]
+n_workers = 2
+envs_per_worker = 2
+rollout_steps = 64
+
+[ppo]
+batch_size = 256
+n_epochs = 2
+
+[self_play]
+frozen_opponent_fraction = 0.5
+snapshot_every_iterations = 2
+
+[checkpoint]
+save_every_iterations = 1
+keep_last = 3
+
+[eval]
+n_seed_pairs = 2
+match_seconds = 20.0
+overtime_max_seconds = 0.0

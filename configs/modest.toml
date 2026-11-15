@@ -1,0 +1,24 @@
+# Same learning problem as default.toml, but leaves CPU headroom for using the PC while training.
+# Note: fewer environments means fewer learner steps per iteration, so batch_size is reduced to keep
+# 3 optimiser steps per epoch. That changes the PPO update slightly; it is not a bit-for-bit equivalent run.
+
+[run]
+name = "s1-modest"
+seed = 1
+stage = "s1-contact"
+
+[model]
+actor_layers = [512, 512, 512]
+critic_layers = [512, 512, 512]
+
+[collect]
+n_workers = 4
+envs_per_worker = 6
+rollout_steps = 512           # 24 envs x 2 agents x 512 = 24,576 learner steps per iteration
+
+[ppo]
+batch_size = 8192
+
+[checkpoint]
+save_every_iterations = 50
+keep_last = 5

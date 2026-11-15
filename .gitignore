@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Generated training artefacts: weights, checkpoints, logs, exports, benchmark output.
+# These are large and reproducible from config + seeds; keep them out of Git history.
+runs/
+bot/model/
+*.pt
+*.pth
+wandb/
+shmem_flinks/
+
+# Optional visualiser binary (downloaded separately, see README)
+rlviser.exe
+rlviser
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db

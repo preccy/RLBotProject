@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "botcore"
+version = "0.1.0"
+description = "Offline Rocket League bot: RocketSim/RLGym v2 training, evaluation and RLBot v5 deployment"
+requires-python = ">=3.11,<3.13"
+# Dependencies are intentionally not declared here: the working environment is pinned in
+# requirements-lock.txt and installed separately so `pip install -e . --no-deps` can never
+# upgrade or replace torch/numpy/RocketSim behind your back.
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+    "slow: multi-process or training tests (deselect with -m 'not slow')",
+]
