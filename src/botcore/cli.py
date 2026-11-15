@@ -198,6 +198,24 @@ def cmd_live_report(args) -> int:
     return 0
 
 
+def cmd_replay_html(args) -> int:
+    from botcore.viz import frames_from_recording, frames_from_simulation, write_html
+
+    if args.recording:
+        data = frames_from_recording(Path(args.recording))
+    else:
+        if not args.policy:
+            print("error: give --policy (and optionally --opponent) or --recording")
+            return 2
+        a = _resolve_policy(args.policy)
+        b = _resolve_policy(args.opponent) if args.opponent else a
+        data = frames_from_simulation(a, b, args.seconds, args.seed, args.scenario, args.deterministic)
+    out = Path(args.out) if args.out else ROOT / "runs" / "viz" / f"replay-{time.strftime('%Y%m%d-%H%M%S')}.html"
+    write_html(data, out)
+    print(f"wrote {out} ({len(data['frames'])} frames); open it in a browser")
+    return 0
+
+
 def cmd_obs_doc(args) -> int:
     from botcore.obs.spec import render_markdown
 
@@ -312,6 +330,17 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--dir", required=True)
     s.add_argument("--policy", help="bundle used for the simulator reference (default bot\model)")
     s.set_defaults(fn=cmd_live_report)
+
+    s = sub.add_parser("replay-html", help="write a self-contained HTML top-down replay (sim match or live recording)")
+    s.add_argument("--policy")
+    s.add_argument("--opponent")
+    s.add_argument("--recording", help="a .bcp file from BOTCORE_LIVE_DIR")
+    s.add_argument("--seconds", type=float, default=90.0)
+    s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--scenario", default="kickoff")
+    s.add_argument("--deterministic", action="store_true")
+    s.add_argument("--out")
+    s.set_defaults(fn=cmd_replay_html)
 
     s = sub.add_parser("obs-doc", help="regenerate docs/OBSERVATION_SPEC.md")
     s.set_defaults(fn=cmd_obs_doc)

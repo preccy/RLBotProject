@@ -29,6 +29,8 @@ def main() -> int:
     ap.add_argument("--match", default=str(ROOT / "bot" / "match_live_selfplay.toml"))
     ap.add_argument("--max-minutes", type=float, default=10.0)
     ap.add_argument("--out")
+    ap.add_argument("--allow-overtime", action="store_true",
+                    help="keep playing overtime (unlimited in Rocket League); by default stop when regulation ends")
     args = ap.parse_args()
 
     out = Path(args.out) if args.out else ROOT / "runs" / "live" / time.strftime("%Y%m%d-%H%M%S")
@@ -57,6 +59,9 @@ def main() -> int:
                     print(phases[-1])
                     last_phase = phase
                 if phase == flat.MatchPhase.Ended:
+                    break
+                if packet.match_info.is_overtime and not args.allow_overtime:
+                    print("regulation over and tied: stopping instead of playing unlimited overtime")
                     break
             time.sleep(0.2)
         final = manager.packet

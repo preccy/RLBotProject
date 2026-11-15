@@ -222,9 +222,9 @@ def analyse_recording(rec: Recording, reference: np.ndarray | None) -> Dict:
 def analyse_log(path: Path) -> Dict:
     counts: Counter = Counter()
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        m = re.match(r"\S+ \S+ (WARNING|ERROR|CRITICAL) \S+: (.*)", line)
+        m = re.match(r"\S+ \S+ (WARNING|ERROR|CRITICAL) (.+?): (.*)", line)
         if m:
-            msg = re.sub(r"\d+(\.\d+)?", "#", m.group(2))[:90]
+            msg = re.sub(r"\d+(\.\d+)?", "#", m.group(3))[:90]
             counts[f"{m.group(1)}: {msg}"] += 1
     return dict(counts.most_common(12))
 

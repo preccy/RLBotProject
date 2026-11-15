@@ -14,6 +14,7 @@ existing_match_behavior = "Restart"
 
 [mutators]
 match_length = "FiveMinutes"
+overtime = "FiveMaxFirstScore"   # backstop; scripts/live_check.py stops at overtime by default
 
 [[cars]]
 config_file = "bot.toml"
