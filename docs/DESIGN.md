@@ -192,6 +192,10 @@ early snapshot (100 pairs ~ 3-6 min on this CPU), watch a few minutes in RLViser
   GoalScored/Replay, so the overtime kickoff (Active -> Countdown) skipped the reset, kept the previous action and
   re-timed the last action through the countdown. BotCoreBot now routes such countdowns through the normal reset
   path; verified by replaying the live recording through the real runner offline (1 -> 2 resets) and by a test.
+* **Short countdowns** (found in live test 2): rlgym-rlbot resets on the 440th countdown tick assuming >= 479; a
+  440-tick countdown occurred and the kickoff started without a reset. BotCoreBot resets on the 380th tick and
+  forces a reset if a kickoff still starts without one (`missed_kickoff_resets`). Verified on the real recording,
+  by tests (480/440/300-tick countdowns) and live (6/6).
 * **Kickoff jump caveat** (seen once in 4 live kickoffs): if the first kickoff decision contains jump, rlgym-rlbot
   sends it during the countdown, so the game sees a held jump, not a press, and the car does not jump. Training
   treats that decision as a real jump. Left as is: a trained policy that relies on a first-tick kickoff jump would

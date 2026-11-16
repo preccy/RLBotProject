@@ -62,3 +62,41 @@ edited once the run begins.
   "improvement vs M2" holds it is marked `candidate`, not promoted. Reward curves and point estimates with
   inconclusive intervals never promote anything.
 * Live Rocket League validation only if the verdict is "demonstrated improvement".
+
+---
+
+## Results (appended 2026-11-16 after the run and all evaluations)
+
+**Training.** Resumed exactly (counters continued from 11,796,480; entropy continued from D-s202's last value);
+2,103 iterations, 155,049,984 added steps, final total 166,846,464; 2.16 h at 19.9k steps/s; stopped at the
+budget. Runtime log-prob alignment guard max 3.1e-5. Training diagnostics (not used for decisions): touch reward
+per step 0.0048 -> 0.0097, entropy 3.44 -> 3.09.
+
+**Decision evaluations (fresh seeds 1,001,000-1,001,149; 150 pairs = 300 matches each):**
+
+| Comparison | W-D-L | Score [95% CI] | Goals | Own goals / match (A) | Touches / min (A) | Airborne (A) |
+|---|---|---|---|---|---|---|
+| FINAL vs M2REF | 300-0-0 | 1.000 [1.000, 1.000] | 3,401-101 | 0.18 | 64.1 | 0.10 |
+| FINAL vs R0 | 298-0-2 | 0.993 [0.983, 1.000] | 2,435-182 | 0.60 | 45.8 | 0.04 |
+| M2REF vs R0 | 165-56-79 | 0.643 [0.597, 0.690] | 396-223 | 0.73 | 4.7 | 0.27 |
+
+Own-goal difference vs R0, FINAL - M2REF, per match: **-0.133 [-0.26, -0.013]** (150 pairs).
+
+* improvement vs M2: **yes**; beats random: **yes**; own-goal reduction: **yes, but small** (0.73 -> 0.60 per match;
+  own goals are still ~99% of what the random opponent is credited with).
+* **Verdict: demonstrated improvement.** Continuation gate: continue. **Promoted**: `runs/s1-long` iteration 2,263
+  (weights `8d55b78c86c7`) is the first `best_verified`; it passed the standing promotion rule.
+
+**Diagnostics (40 pairs on the old diagnostic seeds; not decision inputs):** midpoint (iter 1,200) beat R0 80-0-0
+(740-19) and M2REF 80-0-0 (993-59); final beat R0 80-0-0 (658-36) and M2REF 80-0-0 (892-20); **final vs midpoint
+0.850 [0.775, 0.912], 68-0-12, 418-189**, so the second hour still added strength (no plateau at the budget).
+
+**Sanity checks on the size of the effect:** goals are not a kickoff trick (vs M2REF: median 21 s from kickoff to
+goal, 11% within 5 s); final vs itself is balanced (46-39 goals), so the evaluation has no side bias; vs M2REF the
+final's goals were 106 own shots and 0 opponent own goals in 10 matches. All opponents here are weak (random and
+earlier versions of the same lineage): this measures progress along the lineage, not absolute strength.
+
+The own-goal inspection (scripts/own_goal_inspect.py) was prepared but not needed for the decision.
+
+**Live Rocket League validation** of the promoted policy: docs/LIVE_TEST_2.md (goals, resets, demolition; one
+reset bug found and fixed).

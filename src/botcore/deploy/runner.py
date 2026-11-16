@@ -37,6 +37,7 @@ from botcore.obs import FLIP_EXPIRED_KEY, PAD_TIMERS_KEY, SpecObsBuilder
 DEFAULT_AGENT_ID = "local/botcore"
 REPORT_EVERY_SECONDS = 30.0
 LIVE_DIR_ENV = "BOTCORE_LIVE_DIR"
+COUNTDOWN_RESET_LEAD = 60  # ticks: reset at the 380th countdown tick instead of rlgym-rlbot's 440th
 _ACTIVE_PHASES = (flat.MatchPhase.Countdown, flat.MatchPhase.Kickoff, flat.MatchPhase.Active)
 
 
@@ -82,6 +83,8 @@ class BotCoreBot(RLGymBot):
         self.env_resets = 0
         self.unexpected_resets = 0
         self.overtime_kickoff_resets = 0
+        self.missed_kickoff_resets = 0
+        self._awaiting_kickoff_reset = False
         self._last_report = time.perf_counter()
         self.live_dir = Path(live_dir or os.environ.get(LIVE_DIR_ENV, "")) if (live_dir or os.environ.get(LIVE_DIR_ENV)) else None
         self.recorder = None
@@ -133,6 +136,7 @@ class BotCoreBot(RLGymBot):
                 "policy_faults": self.policy_faults, "fallback_ticks": self.fallback_ticks,
                 "env_resets": self.env_resets, "unexpected_resets": self.unexpected_resets,
                 "overtime_kickoff_resets": self.overtime_kickoff_resets,
+                "missed_kickoff_resets": self.missed_kickoff_resets,
                 "packets_recorded": None if self.recorder is None else self.recorder.count,
                 "load_error": self.load_error is not None}
 
@@ -186,7 +190,24 @@ class BotCoreBot(RLGymBot):
                 match_info=flat.MatchInfo(frame_num=last.match_info.frame_num,
                                           seconds_elapsed=last.match_info.seconds_elapsed,
                                           match_phase=flat.MatchPhase.GoalScored))
+        countdown_before, resets_before = self._first_countdown_tick, self.env_resets
         super()._process_unused_packets()
+        if self._first_countdown_tick != countdown_before:
+            # rlgym-rlbot resets on the 440th countdown tick, assuming countdowns last >= 479 ticks; live test 2 saw a
+            # 440-tick countdown after a goal, so the reset never happened. Reset COUNTDOWN_RESET_LEAD ticks earlier
+            # (cars are frozen throughout the countdown, so the observation is the same).
+            self._first_countdown_tick -= COUNTDOWN_RESET_LEAD
+            self._awaiting_kickoff_reset = True
+        if self.env_resets > resets_before:
+            self._awaiting_kickoff_reset = False
+        elif self._awaiting_kickoff_reset and self._unused_packets[-1].match_info.match_phase in (
+                flat.MatchPhase.Kickoff, flat.MatchPhase.Active):
+            # Safety net for an even shorter countdown: never play a kickoff on pre-goal state.
+            self.missed_kickoff_resets += 1
+            self._awaiting_kickoff_reset = False
+            self.logger.warning("kickoff started without a reset (countdown too short); forcing an env reset")
+            self._tick_action_map.clear()
+            self._unexpected_env_reset()
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
         self.latency.add(elapsed_ms)
         latest = self._unused_packets[-1]

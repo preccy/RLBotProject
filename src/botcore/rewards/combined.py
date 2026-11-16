@@ -77,6 +77,7 @@ class LoggedReward(RewardFunction[Any, Any, float]):
         teams = [state.cars[a].team_num for a in agents]
 
         total = np.zeros(len(agents), dtype=np.float64)
+        self.last_breakdown = {}  # component -> weighted contribution per agent (diagnostics)
         for component, weight in self.components:
             raw = np.asarray(component.compute(agents, state, prev_state, ctx), dtype=np.float64)
             if component.kind == "per_second":
@@ -84,6 +85,7 @@ class LoggedReward(RewardFunction[Any, Any, float]):
             if component.individual:
                 raw = apply_team_spirit(raw, teams, self.team_spirit)
             weighted = raw * weight
+            self.last_breakdown[component.name] = weighted.copy()
             self._raw[component.name] += float(raw.sum())
             self._weighted[component.name] += float(weighted.sum())
             total += weighted

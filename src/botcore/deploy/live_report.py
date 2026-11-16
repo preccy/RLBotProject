@@ -163,6 +163,30 @@ def analyse_recording(rec: Recording, reference: np.ndarray | None) -> Dict:
                 "mean_cos_forward_to_ball": float(facing.mean()),
             }
 
+    # ---- demolitions: from packets, and whether the policy's observation flagged them
+    if pid is not None and rec.packets:
+        demo_frames = set()
+        demos = 0
+        was = False
+        for packet in rec.packets:
+            me = _player(packet, pid)
+            if me is None:
+                continue
+            now = me.demolished_timeout != -1
+            if now:
+                demo_frames.add(packet.match_info.frame_num)
+            if now and not was:
+                demos += 1
+            was = now
+        flagged = None
+        if rec.decision_obs and demo_frames:
+            idx = LAYOUT.self_slice.start + S.SELF_IDX["is_demoed"].start
+            during = [o[idx] for o, t in zip(rec.decision_obs, rec.decision_tick) if t in demo_frames]
+            flagged = {"decisions_while_demolished": len(during),
+                       "fraction_with_is_demoed_flag": float(np.mean(during)) if during else None}
+        out["demolitions_of_this_car"] = demos
+        out["demolition_observation_check"] = flagged
+
     # ---- world-frame orientation and kickoff behaviour from packets
     if pid is not None and rec.packets:
         world_y = []

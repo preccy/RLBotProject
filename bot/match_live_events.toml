@@ -1,0 +1,25 @@
+#:schema https://rlbot.org/schemas/match.json
+# Live integration check with scripted events (scripts/live_check.py --events): goal, reset and demolition.
+[rlbot]
+launcher = "Steam"
+auto_start_agents = true
+wait_for_agents = true
+
+[match]
+game_mode = "Soccar"
+game_map_upk = "Stadium_P"
+skip_replays = false
+enable_state_setting = true   # needed for scripted goal / demolition events
+existing_match_behavior = "Restart"
+
+[mutators]
+match_length = "FiveMinutes"
+overtime = "FiveMaxFirstScore"   # backstop; scripts/live_check.py stops at overtime by default
+
+[[cars]]
+config_file = "bot.toml"
+team = 0
+
+[[cars]]
+config_file = "bot.toml"
+team = 1

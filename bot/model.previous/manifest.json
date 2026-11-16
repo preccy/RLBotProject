@@ -1,0 +1,56 @@
+{
+  "manifest_format": 1,
+  "created_at": "2026-11-15T22:41:11",
+  "architecture": {
+    "schema": 1,
+    "kind": "mlp",
+    "actor_layers": [
+      512,
+      512,
+      512
+    ],
+    "critic_layers": [
+      512,
+      512,
+      512
+    ]
+  },
+  "actor_parameters": 713306,
+  "contract": {
+    "obs_spec_version": "obs-v1",
+    "obs_spec_hash": "48516c0485f94db39b64da90b0c7a78facbac84c75ffe1de7c29b4e1c8cb9de6",
+    "obs_size": 276,
+    "action_table_id": "rlgym-lookup-90-v1",
+    "action_table_sha256": "86baa15c48c42c497f3ea0fe62efeb49e4a8241cb3191957822e453cd2d0b655",
+    "n_actions": 90,
+    "action_repeat": 8,
+    "rlbot_delay": true,
+    "normalisation": "fixed scales defined by the obs spec; no running statistics"
+  },
+  "weights_sha256": "a75feaa9cfb1cb99c8dfaff689a37416f3e3c62f258c7ad44e6ee87a7bb662d6",
+  "source": {
+    "checkpoint": "C:\\Users\\TomPr\\RLBotProject\\runs\\s1w-probe\\checkpoints\\iter_000060",
+    "run": "s1w-probe",
+    "iteration": 60,
+    "learner_timesteps": 4423680,
+    "curriculum_stage": "s1-contact"
+  },
+  "dependencies": {
+    "python": "3.11.9",
+    "torch": "2.7.0+cu128",
+    "numpy": "1.26.4",
+    "rlgym": "2.0.1",
+    "rlgym-rocket-league": "2.0.1",
+    "rocketsim": "2.2.1",
+    "rlgym-learn-algos": "0.4.2",
+    "rlgym-compat": "2.3.6",
+    "rlgym-rlbot": "0.3.0",
+    "rlbot": "2.0.0b52",
+    "rlbot_flatbuffers": "0.18.11"
+  },
+  "code": {
+    "git_commit": "HEAD",
+    "dirty": false,
+    "botcore_version": "0.1.0"
+  }
+}

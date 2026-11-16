@@ -282,3 +282,31 @@ def test_real_runner_resets_at_overtime_kickoff(tmp_path, overtime_fix):
         assert not after[0][prev:prev + 8].any(), "previous action must be cleared at the overtime kickoff"
     else:
         assert bot.env_resets == 1  # the rlgym-rlbot behaviour observed in live test 1
+
+
+@pytest.mark.parametrize("countdown_ticks,expect_missed", [(480, 0), (440, 0), (300, 1)])
+def test_real_runner_resets_after_goal_even_with_short_countdowns(tmp_path, countdown_ticks, expect_missed):
+    """Goal -> replay -> countdown -> kickoff. Live test 2 saw a 440-tick countdown, which rlgym-rlbot's 440th-tick reset
+    misses; BotCoreBot resets 60 ticks earlier and forces a reset if a kickoff still starts without one."""
+    import torch
+
+    from botcore.config import Config
+    from botcore.deploy.offline import attach, drive
+    from botcore.deploy.runner import BotCoreBot
+    from botcore.export import write_bundle
+    from botcore.models import arch_from_config, build_actor
+
+    cfg = Config()
+    cfg.model.actor_layers = (16,)
+    arch = arch_from_config(cfg.model)
+    torch.manual_seed(0)
+    bundle = write_bundle(tmp_path / "b", build_actor(arch, S.OBS_SIZE, 90), arch, 8, True, {})
+    bot = BotCoreBot(bundle)
+    env = make_env(1, seed=0, scenario_weights={"kickoff": 1.0})
+    env.reset()
+    attach(bot, field_info(), team=0, index=0, player_id=5, opponents=[(1, 6)])
+    phases = [("Countdown", 500), ("Kickoff", 60), ("Active", 200), ("GoalScored", 60), ("Replay", 100),
+              ("Countdown", countdown_ticks), ("Kickoff", 60), ("Active", 100)]
+    drive(bot, _phase_packets(env, phases, {"blue-0": 5, "orange-0": 6}))
+    assert bot.env_resets == 2, "every kickoff must start from a reset"
+    assert bot.missed_kickoff_resets == expect_missed and bot.fallback_ticks == 0

@@ -1,7 +1,27 @@
 # Project status
 
-Last updated 2026-11-16 (Milestone 2). No policy is known to be stronger than a random policy in full matches yet;
-no `best_verified` model exists. Nothing here implies a rank.
+Last updated 2026-11-16 (long run 1). Nothing here implies a rank or Rocket League skill level; all match results
+are in RocketSim against random or earlier versions of the same lineage unless stated otherwise.
+
+## Current state (long run 1, docs/EXPERIMENT_LONG1.md, docs/LIVE_TEST_2.md)
+
+* **best_verified = `runs/s1-long` iteration 2,263** (weights `8d55b78c86c7`, 166.8M steps), also installed in
+  `bot/model` (previous probe kept in `bot/model.previous`). It is a continuation of M2 run D-s202 for 155.0M steps
+  with the configuration unchanged.
+* Pre-registered decision, 150 fresh seed pairs each:
+  * vs M2 reference: 300-0-0 (goals 3,401-101), score 1.000;
+  * vs random: 298-0-2, 0.993 [0.983, 1.000];
+  * own goals vs random: 0.73 -> 0.60 per match (difference -0.133 [-0.26, -0.013]).
+  * Verdict: **demonstrated improvement**. It still beats its own midpoint 0.850 [0.775, 0.912], so it had not
+    plateaued.
+* Live Rocket League tests with this policy:
+  * it scored natural goals;
+  * goals, replays, kickoffs and a staged demolition were all handled;
+  * 0 fallbacks; p99 callback 1.6 ms; 0 over 6 ms.
+  * A missed kickoff reset after a 440-tick countdown was found and fixed (verified offline on the real recording and
+    live 6/6).
+* Training command for the next block (not started): see "Next experiment" in the report / EXPERIMENT_LONG1.md.
+  Resume with `python -m botcore resume --run runs\s1-long --config <config with a higher total_iterations>`.
 
 ## Milestone 2 summary (details: docs/EXPERIMENT_M2.md, docs/LIVE_TEST_1.md)
 
