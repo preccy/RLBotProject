@@ -106,7 +106,7 @@ def cmd_evaluate(args) -> int:
                        overtime_max_seconds=cfg.eval.overtime_max_seconds if args.overtime is None else args.overtime)
     det = cfg.eval.deterministic
     report = evaluate(Side(str(a), args.a_deterministic or det), Side(str(b), args.b_deterministic or det), rules,
-                      n_pairs=args.pairs or cfg.eval.n_seed_pairs, workers=args.workers)
+                      n_pairs=args.pairs or cfg.eval.n_seed_pairs, workers=args.workers, seed_offset=args.seed_offset)
     out = Path(args.out) if args.out else ROOT / "runs" / "eval" / f"{time.strftime('%Y%m%d-%H%M%S')}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -282,6 +282,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--a-deterministic", action="store_true")
     s.add_argument("--b-deterministic", action="store_true")
     s.add_argument("--workers", type=int)
+    s.add_argument("--seed-offset", type=int, default=0,
+                   help="use evaluation seeds 1,000,000+offset upwards (fresh seeds for confirmation runs)")
     s.add_argument("--out")
     s.set_defaults(fn=cmd_evaluate)
 

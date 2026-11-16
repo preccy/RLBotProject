@@ -38,7 +38,10 @@ skip activation and replace `python` below with `.\.venv\Scripts\python.exe`.)
 | Export and install into the RLBot bot | `python -m botcore export --checkpoint runs\s1-a --to-bot` | seconds |
 | Compare two policies (headless) | `python -m botcore evaluate --a runs\s1-a --b runs\s1-a\checkpoints\iter_000100 --pairs 50` | minutes |
 | Deployment latency CPU vs GPU | `python -m botcore latency --policy bot\model` | ~30 s |
-| Watch a simulated match | `python -m botcore watch --policy bot\model --seconds 120` (needs `rlviser.exe`, below) | |
+| Replay a match in the browser | `python -m botcore replay-html --policy runs\s1-a --opponent runseference\R0-random-init --seconds 120` (or `--recording <file.bcp>` for a live match); open the HTML from `runsiz\` | ~20 s |
+| Watch a simulated match in RLViser | `python -m botcore watch --policy bot\model --seconds 120` (needs `rlviser.exe`, below) | |
+| Live game check with diagnostics | `python scripts\live_check.py` (BotCore vs BotCore, stops at overtime), then read `runs\live\<time>\live_report.json` | ~8 min |
+| Goal attribution (own goals) | `python scripts\goal_attribution.py <bundle> <opponent bundle>` | ~1 min |
 | Promote a candidate | `python -m botcore export --checkpoint runs\s1-a --mark-candidate`, evaluate it vs the current best with `--pairs 100`, then `python -m botcore promote --run runs\s1-a --reports <report.json> ...` | |
 
 Training prints one line per iteration and appends full metrics (PPO stats, reward breakdown raw and weighted,
@@ -65,11 +68,18 @@ early checkpoint and watch it (see "Judging progress" in docs/DESIGN.md).
    sends neutral inputs rather than silently playing something else.
 
 Optional environment variables for the bot: `BOTCORE_DEVICE=cuda:0` (default `cpu`), `BOTCORE_DETERMINISTIC=1`
-(argmax instead of sampling).
+(argmax instead of sampling), `BOTCORE_LIVE_DIR=<folder>` (per-bot log, packet/decision/timing recording and summary;
+analyse with `python -m botcore live-report --dir <folder>`).
 
-## Optional visualiser
+## Visualisers
 
-Download `rlviser.exe` from https://github.com/VirxEC/rlviser/releases into this folder, then
+**HTML replay (no extra software):** `python -m botcore replay-html ...` (table above) writes a self-contained page
+with a top-down view, play/pause, speed and a scrub bar. Works for simulated matches and live recordings.
+
+**RLViser (3D):** the installed `rlviser-py 0.6.13` speaks the protocol of RLViser **0.9.1 or older**; 0.9.2+ needs
+rlviser-py 0.6.14+, which would force numpy 2 and break `rlgym-rocket-league 2.0.1`. Download
+https://github.com/VirxEC/rlviser/releases/download/v0.9.1/rlviser.exe (SHA-256
+`8155ff8b7883d57e7674987a912624ae9f0f3afd8386b1f860b939481ea1720b`) into this folder, then
 `python -m botcore watch --policy <bundle|run|checkpoint> [--opponent <...>] [--scenario kickoff|shot|save|...]`.
 `--dry-run` runs the same loop without opening a window. Rendering is never used during training.
 

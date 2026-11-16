@@ -1,7 +1,80 @@
 # Project status
 
-Last updated 2026-11-15. Milestone 1 (complete training-to-deployment loop) is built and tested in simulation.
-**No policy has been trained beyond short probes; nothing has been run in Rocket League yet.**
+Last updated 2026-11-16 (Milestone 2). No policy is known to be stronger than a random policy in full matches yet;
+no `best_verified` model exists. Nothing here implies a rank.
+
+## Milestone 2 summary (details: docs/EXPERIMENT_M2.md, docs/LIVE_TEST_1.md)
+
+**Collector audit (real RocketSim workers, `tests/test_collector_audit.py`).**
+* Goals and resets: 14 goals produced 28 terminal trajectories, each with +1/-1 exactly once on the terminal step.
+  Every terminal final observation shows the ball past the goal line (min 5,218 uu vs 5,216), on the correct side of
+  each agent's own frame, so it is captured before the auto-reset. Truncated trajectories never carry goal reward.
+* Continuity: no own-car jump above 105 uu within a trajectory (limit 280).
+* Alignment and policy version: stored vs recomputed log-probs differ by exactly 0.0 over 1,500 pipelined
+  transitions with frozen opponents; frozen slots never reach the learner (a confident, different frozen net
+  differs by 0.65 nats on average, so leakage would show).
+* Reward assignment: rewards land on the agent that earned them (blue +1.62 vs orange -1.62 in a controlled test).
+* Runtime guard: every iteration recomputes 4,096 log-probs before the update and stops if they differ by more
+  than 1e-3. Observed: <= 1.5e-6 on GPU over 1,280 iterations.
+
+**First live Rocket League test (2026-11-15).** BotCore vs BotCore via RLBot v5, both colours.
+* Bundle load: OK; 0 fallbacks, 0 policy faults.
+* Ticks: 99.85% of in-play frame steps were single ticks.
+* Callback latency: p99 1.7 ms; 2 of ~49,000 callbacks were over 6 ms.
+* Controls: 100% of applied inputs were exact action-table rows.
+* Orientation: correct for both colours; observations finite.
+* Behaviour: the same as in RocketSim for the same policy.
+* Found and fixed: rlgym-rlbot skipped the environment reset at overtime kickoffs. Verified by replaying the live
+  recording through the real runner offline (1 -> 2 resets) and covered by a regression test.
+* Not covered: a goal, a demolition, a competent policy.
+
+**Visualisation.** `python -m botcore replay-html` writes a self-contained top-down HTML replay of a simulated
+match or a live recording. Its rendering was checked with a headless Edge screenshot. RLViser 0.9.1 (the version
+matching the installed rlviser-py 0.6.13) is downloaded and its hash verified, but running it was blocked in this
+session; steps in README.
+
+**Experiment M2 (pre-registered 2x2: lr x goal weight, 2 seeds, 11.8M steps each).**
+* Neither effect is established. The combination (current default, cell D) looks best but with large seed variance.
+* The default stays cell D, provisional.
+* No run is confirmed to beat the random policy: the best 40-pair result (0.656) shrank to 0.525 [0.468, 0.583]
+  on 100 fresh pairs.
+* Training clearly changes behaviour: airborne time 83% -> 27% in the best run, ~30x more ball touches, and it beats
+  the 4.4M probe (0.738 [0.650, 0.825]).
+* Specific weakness: own goals (~0.6-1.1 per match); the random opponent scored no real goals at all.
+
+**Action representation: kept.** No deployment problem was found, and trained policies do leave the near-random
+air-heavy behaviour. The kickoff first-tick jump caveat is documented (docs/DESIGN.md section 2/8).
+
+## Verdict and long-run plan
+
+**Ready for a gated sustained run; not for an open-ended one.** The training, evaluation, checkpoint and deployment
+paths are verified (see above). What is not yet shown is any match-level improvement over a random policy. That is
+the question the next run must answer, with a stop rule:
+
+* Command (PowerShell, project root):
+  `python -m botcore train --config configs\default.toml --name s1-long --iterations 2100`
+  This is cell D: lr 3e-4, goals 3, stage-1 shaping, 512x3 MLP, seed 1.
+* Expected duration: measured 9.1-9.3 min per 11.8M steps over 74 min of continuous training, i.e. ~77M learner
+  steps/hour (~21k steps/s). 2,100 iterations = 155M steps, about 2 hours, at ~80% CPU. Disk: ~60 MB/hour of
+  opponent snapshots plus 5 x 16 MB checkpoints.
+* Checkpoints and stopping:
+  * A checkpoint is written every 20 iterations (~1.5M steps, ~70 s); the last 5 plus any pointer targets are kept.
+  * Ctrl+C or creating `runs\s1-long\STOP` checkpoints after the current iteration (verified: ~3 s).
+  * `python -m botcore resume --run runs\s1-long` restores weights, Adam state, return normaliser, counters and RNG
+    exactly (verified). Environments restart with fresh episodes.
+* **Gate 1 at ~155M steps** (all 300 s matches, stochastic). Evaluate the latest checkpoint:
+  * vs R0 on 100 fresh pairs (`--seed-offset 200`);
+  * vs E60 and vs `runs\m2-D-s202\exports\iter_000160` on 40 pairs each;
+  * plus own goals per match.
+  * Continue if vs R0 has CI lower bound > 0.5, or if it beats D-s202 with CI lower bound > 0.5 and its own goals
+    per match are below D-s202's 1.06. A passing R0 result is then promoted (`export --mark-candidate`, `promote
+    --initial`).
+  * Otherwise stop and revise stage-1 rewards before spending more compute. The first change to test is a
+    direction-aware touch reward (pay for ball velocity towards the opponent goal, not any hard hit).
+* Remaining uncertainties: whether match-level gains appear by 155M steps; seed variance (one long seed); behaviour
+  in game of a competent policy (goals, demos, kickoff jumps); RocketSim vs Rocket League physics differences.
+
+## Milestone 1 record
 
 ## Machine and environment (verified)
 

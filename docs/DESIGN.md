@@ -51,6 +51,16 @@ without a flip). Masking ineffective actions would need flip/boost state that is
 would remove legitimate options (e.g. stalls of air-roll inputs). If masks are added, `ActorCriticPolicy` must
 derive them from the observation so sampling, log-probability and entropy all use the same mask.
 
+**Review (Milestone 2): keep the contract.** Evidence: (1) deployment: in live test 1, 100% of 46,033 in-play
+ticks of applied inputs were exact table rows, with zero fallbacks, so the table creates no deployment problem;
+(2) learning: 18 of 90 rows press jump, so a near-random policy jumps on ~20% of decisions and is airborne
+~75-80% of the time (measured identically in sim and live). That makes early exploration air-heavy, and is the
+main visible cost of this table; the M2 evaluation diagnostics (airborne fraction vs training) show whether
+training moves away from it (see EXPERIMENT_M2.md results). This is the standard RLGym table used for strong
+community bots, so changing it (new id, retraining) needs concrete evidence that it blocks learning, which the
+current data does not provide. The kickoff jump caveat (section 8) is the only measured sim/game difference
+caused by action timing.
+
 ## 3. Rewards
 
 All components return raw values; `LoggedReward` applies weights and logs raw and weighted sums per component
@@ -177,7 +187,18 @@ early snapshot (100 pairs ~ 3-6 min on this CPU), watch a few minutes in RLViser
 * RocketSim is not a perfect replica of Rocket League; small physics differences and a different input path mean
   that sim win rates do not transfer exactly.
 * rlbot 2.0.0b52 (pinned by rlgym-rlbot) is older than the installed RLBotServer build (11d5d86); the schema changes
-  in between are additive, but the combination has **not been run**.
+  in between are additive, and the combination **ran without errors in live test 1** (docs/LIVE_TEST_1.md).
+* **Overtime kickoffs** (found live): rlgym-rlbot 0.3.0 only runs its kickoff reset when the countdown follows
+  GoalScored/Replay, so the overtime kickoff (Active -> Countdown) skipped the reset, kept the previous action and
+  re-timed the last action through the countdown. BotCoreBot now routes such countdowns through the normal reset
+  path; verified by replaying the live recording through the real runner offline (1 -> 2 resets) and by a test.
+* **Kickoff jump caveat** (seen once in 4 live kickoffs): if the first kickoff decision contains jump, rlgym-rlbot
+  sends it during the countdown, so the game sees a held jump, not a press, and the car does not jump. Training
+  treats that decision as a real jump. Left as is: a trained policy that relies on a first-tick kickoff jump would
+  need a hard-coded kickoff or a countdown-release tweak; measure how often the trained policy does it first.
+* Live diagnostics: `BOTCORE_LIVE_DIR=<dir>` makes each bot write a log, a packet/decision/timing recording and a
+  summary; `python -m botcore live-report --dir <dir>` analyses them; `python -m botcore replay-html --recording
+  <file.bcp>` draws the match; `botcore.deploy.offline` drives the real runner with recorded packets.
 * Faults: if the bundle is missing/incompatible the bot logs CRITICAL and sends neutral inputs; inference
   exceptions fall back to the all-zero action with logged counts; a tick with no action produced gets a zero
   ControllerState (rlgym-rlbot would repeat the last action).

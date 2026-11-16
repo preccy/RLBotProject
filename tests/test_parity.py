@@ -232,3 +232,53 @@ def test_live_report_runs_on_a_synthetic_session(tmp_path):
     assert blue["orientation_at_kickoff"]["all_in_own_half_in_team_frame"]
     assert orange["orientation_at_kickoff"]["all_in_own_half_in_team_frame"]
     assert blue["callback_ms"]["over_6ms"] == 0 and blue["applied_inputs"]["fraction_matching_action_table"] == 1.0
+
+
+def _phase_packets(env, phases, player_ids):
+    from rlbot import flat as F
+
+    packets, frame = [], 10
+    for phase, n in phases:
+        for _ in range(n):
+            packets.append(state_to_packet(env.state, frame, player_ids, phase=getattr(F.MatchPhase, phase)))
+            frame += 1
+    return packets
+
+
+@pytest.mark.parametrize("overtime_fix", [True, False])
+def test_real_runner_resets_at_overtime_kickoff(tmp_path, overtime_fix):
+    """Drive the real BotCoreBot (rlgym-rlbot) offline: start countdown -> kickoff -> play -> overtime countdown
+    -> kickoff -> play. Every kickoff must reset the env (as in training) and clear the previous action."""
+    import torch
+
+    from botcore.config import Config
+    from botcore.deploy.offline import attach, drive
+    from botcore.deploy.runner import BotCoreBot
+    from botcore.export import write_bundle
+    from botcore.models import arch_from_config, build_actor
+
+    cfg = Config()
+    cfg.model.actor_layers = (16,)
+    arch = arch_from_config(cfg.model)
+    torch.manual_seed(0)
+    bundle = write_bundle(tmp_path / "b", build_actor(arch, S.OBS_SIZE, 90), arch, 8, True, {})
+    bot = BotCoreBot(bundle)
+    if not overtime_fix:  # show what rlgym-rlbot alone does
+        bot._process_unused_packets = lambda b=bot: super(BotCoreBot, b)._process_unused_packets()
+    seen = []
+    original = bot.get_action
+    bot.get_action = lambda obs, gs, pkt: (seen.append((pkt.match_info.frame_num, obs.copy())), original(obs, gs, pkt))[1]
+    env = make_env(1, seed=0, scenario_weights={"kickoff": 1.0})
+    env.reset()
+    attach(bot, field_info(), team=0, index=0, player_id=5, opponents=[(1, 6)])
+    phases = [("Countdown", 480), ("Kickoff", 60), ("Active", 300), ("Countdown", 480), ("Kickoff", 60), ("Active", 120)]
+    run = drive(bot, _phase_packets(env, phases, {"blue-0": 5, "orange-0": 6}))
+    assert bot.fallback_ticks == 0 and bot.policy_faults == 0 and len(run.sent) == sum(n for _, n in phases)
+    prev = LAYOUT.self_slice.start + S.SELF_IDX["prev_action"].start
+    overtime_start = 10 + 480 + 60 + 300
+    after = [obs for frame, obs in seen if frame >= overtime_start]
+    if overtime_fix:
+        assert bot.env_resets == 2 and bot.overtime_kickoff_resets == 1
+        assert not after[0][prev:prev + 8].any(), "previous action must be cleared at the overtime kickoff"
+    else:
+        assert bot.env_resets == 1  # the rlgym-rlbot behaviour observed in live test 1

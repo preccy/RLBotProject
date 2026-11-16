@@ -60,3 +60,51 @@ velocity_to_ball 0.5, ball_to_goal 1.5, boost_economy 0.1).
 Two seeds per cell detect only large effects; 11.8M steps is early training, so a factor that matters later
 (e.g. goal weight once play is coherent) may not show here. A null result means "not established at this
 budget", not "no effect".
+
+---
+
+## Results (appended 2026-11-16, after all runs and evaluations)
+
+All 8 runs completed as specified (9.1-9.3 min each, 11,796,480 learner steps; runtime log-prob alignment guard
+<= 1.5e-6 throughout). Reports: `runs/m2/eval/*.json`, summary `runs/m2/summary.json`.
+
+| Run | lr | goal | vs R0: score [95% CI], W-D-L, goals | vs E60: score [95% CI], goals | Eval behaviour: touches/min, speed, ball dist, airborne |
+|---|---|---|---|---|---|
+| A-s101 | 1e-4 | 10 | 0.500 [0.438, 0.562], 19-42-19, 24-23 | 0.519 [0.419, 0.619], 58-51 | 0.7, 494, 1882, 0.82 |
+| A-s202 | 1e-4 | 10 | 0.544 [0.475, 0.619], 19-49-12, 23-16 | 0.519 [0.431, 0.606], 64-59 | 0.5, 486, 1962, 0.82 |
+| B-s101 | 3e-4 | 10 | 0.481 [0.400, 0.562], 24-29-27, 37-37 | 0.463 [0.362, 0.562], 46-66 | 1.2, 501, 1504, 0.83 |
+| B-s202 | 3e-4 | 10 | 0.469 [0.381, 0.556], 23-29-28, 30-35 | 0.600 [0.481, 0.719], 88-68 | 1.1, 510, 1640, 0.78 |
+| C-s101 | 1e-4 | 3 | 0.525 [0.444, 0.600], 28-28-24, 42-39 | 0.525 [0.425, 0.625], 70-65 | 1.7, 474, 1245, 0.79 |
+| C-s202 | 1e-4 | 3 | 0.656 [0.581, 0.725], 39-27-14, 64-29 | 0.562 [0.469, 0.656], 91-75 | 1.5, 527, 1384, 0.57 |
+| D-s101 | 3e-4 | 3 | 0.519 [0.419, 0.619], 32-19-29, 60-55 | 0.631 [0.525, 0.738], 117-87 | 2.7, 491, 940, 0.77 |
+| D-s202 | 3e-4 | 3 | 0.562 [0.456, 0.662], 38-14-28, 93-69 | 0.738 [0.650, 0.825], 178-77 | 4.5, 717, 993, 0.27 |
+
+R0 itself in these matches: 0.14 touches/min, mean ball distance 5,023 uu, airborne 0.83.
+
+Head-to-heads (score of the first-named cell, 40 pairs):
+
+| Factor | seed 101 | seed 202 | Verdict |
+|---|---|---|---|
+| lr 3e-4 vs 1e-4 at goal 3 (D vs C) | 0.531 [0.450, 0.613] | **0.800 [0.713, 0.875]** | |
+| lr 3e-4 vs 1e-4 at goal 10 (B vs A) | 0.463 [0.369, 0.556] | 0.406 [0.319, 0.500] | **not established** (signs disagree) |
+| goal 3 vs 10 at lr 3e-4 (D vs B) | 0.550 [0.456, 0.644] | **0.838 [0.750, 0.912]** | |
+| goal 3 vs 10 at lr 1e-4 (C vs A) | 0.494 [0.400, 0.594] | 0.481 [0.400, 0.562] | **not established** (signs disagree) |
+
+Decisions under the pre-registered rules:
+
+* **Neither effect is established.** The data suggest an interaction (the combination lr 3e-4 + goal 3, cell D, wins
+  both of its seed-202 head-to-heads by a wide margin; each change alone does not help), with large seed variance.
+  Per the rules the default stays cell D, **labelled provisional**.
+* **Beats random:** only C-s202 met the criterion on the 40-pair set. Its pre-registered 100-pair confirmation on
+  unseen seeds (1,000,100-1,000,199) gave **0.525 [0.468, 0.583]** (68-74-58, goals 112-91): **not confirmed**. The
+  0.656 was a selection effect (highest of eight noisy estimates). **No best_verified model is set.**
+* **Behaviour (diagnostic):** training does reduce the air-heavy play of the near-random start: D-s202 is airborne
+  27% of the time (R0: 83%), faster, and closer to the ball, with ~30x R0's touch rate.
+* **Why near-0.5 against a random opponent (diagnostic, `scripts/goal_attribution.py`, 12 matches each):** R0 scored
+  0 real goals; every goal it is credited with was an **own goal** by the learner (D-s202 and C-s202: 12 scored / 7
+  own goals and 10 / 7; the two runs printed unlabelled, so which is which is not recorded). The built-in
+  attribution on 16 further matches gives D-s202 1.06 own goals per match vs R0's 0. The learners score about one
+  goal per 5-minute match but put ~0.6-1.1 per match into their own net. Undirected contact (the stage-1 touch reward pays for hard hits in any direction) is the specific weakness.
+  Own goals per match are now reported by `botcore evaluate` (behaviour.own_goals_per_match).
+
+Interpretation limits: 11.8M steps is very early; two seeds; one budget. "Not established" means not at this budget.

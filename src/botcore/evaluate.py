@@ -108,7 +108,8 @@ def play_match(seed: int, blue: Side, orange: Side, blue_label: str, rules: Matc
     ticks = 0
     overtime = False
     acc = {t: {"touches": 0.0, "speed": 0.0, "ball_dist": 0.0, "airborne": 0.0, "boost": 0.0, "supersonic": 0.0,
-               "n": 0} for t in (C.BLUE_TEAM, C.ORANGE_TEAM)}
+               "n": 0, "own_goals": 0} for t in (C.BLUE_TEAM, C.ORANGE_TEAM)}
+    last_toucher = None  # team that touched the ball last (own-goal attribution)
     while True:
         actions = {}
         for team, team_agents in by_team.items():
@@ -121,6 +122,8 @@ def play_match(seed: int, blue: Side, orange: Side, blue_label: str, rules: Matc
         ball = np.asarray(state.ball.position)
         for a in agents:
             car, d = state.cars[a], acc[teams[a]]
+            if car.ball_touches > 0:
+                last_toucher = teams[a]
             d["touches"] += float(car.ball_touches > 0)
             d["speed"] += float(np.linalg.norm(car.physics.linear_velocity))
             d["ball_dist"] += float(np.linalg.norm(np.asarray(car.physics.position) - ball))
@@ -130,6 +133,9 @@ def play_match(seed: int, blue: Side, orange: Side, blue_label: str, rules: Matc
             d["n"] += 1
         if any(terminated.values()):
             goals[env.state.scoring_team] += 1
+            if last_toucher is not None and last_toucher != env.state.scoring_team:
+                acc[last_toucher]["own_goals"] += 1
+            last_toucher = None
             if overtime:
                 break
             obs = env.reset()
@@ -147,7 +153,8 @@ def play_match(seed: int, blue: Side, orange: Side, blue_label: str, rules: Matc
         cars = len(by_team[team])
         behaviour[name] = {"touch_decisions_per_min": d["touches"] / cars / minutes, "mean_speed": d["speed"] / n,
                            "mean_ball_distance": d["ball_dist"] / n, "airborne_fraction": d["airborne"] / n,
-                           "mean_boost": d["boost"] / n, "supersonic_fraction": d["supersonic"] / n}
+                           "mean_boost": d["boost"] / n, "supersonic_fraction": d["supersonic"] / n,
+                           "own_goals_per_match": float(d["own_goals"])}
     return MatchResult(seed, blue_label, goals[C.BLUE_TEAM], goals[C.ORANGE_TEAM], ticks / C.TICKS_PER_SECOND, overtime,
                        behaviour)
 

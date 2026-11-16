@@ -81,6 +81,7 @@ class BotCoreBot(RLGymBot):
         self.decisions = 0
         self.env_resets = 0
         self.unexpected_resets = 0
+        self.overtime_kickoff_resets = 0
         self._last_report = time.perf_counter()
         self.live_dir = Path(live_dir or os.environ.get(LIVE_DIR_ENV, "")) if (live_dir or os.environ.get(LIVE_DIR_ENV)) else None
         self.recorder = None
@@ -131,6 +132,7 @@ class BotCoreBot(RLGymBot):
         return {"latency_full_callback": self.latency.summary(), "decisions": self.decisions,
                 "policy_faults": self.policy_faults, "fallback_ticks": self.fallback_ticks,
                 "env_resets": self.env_resets, "unexpected_resets": self.unexpected_resets,
+                "overtime_kickoff_resets": self.overtime_kickoff_resets,
                 "packets_recorded": None if self.recorder is None else self.recorder.count,
                 "load_error": self.load_error is not None}
 
@@ -170,6 +172,20 @@ class BotCoreBot(RLGymBot):
 
     def _process_unused_packets(self):
         t0 = time.perf_counter()
+        last = self._last_packet
+        if (last is not None and last.match_info.match_phase in (flat.MatchPhase.Kickoff, flat.MatchPhase.Active)
+                and any(p.match_info.match_phase == flat.MatchPhase.Countdown for p in self._unused_packets)):
+            # rlgym-rlbot 0.3.0 only starts its kickoff reset when the countdown follows GoalScored/Replay. An
+            # overtime kickoff (Active -> Countdown, found in live test 1) would otherwise skip the reset, keep the
+            # stale previous action and re-time the last action through the countdown. Present the previous packet
+            # as GoalScored so the normal countdown/reset path runs, exactly as in training.
+            self.overtime_kickoff_resets += 1
+            self.logger.info("countdown after open play (overtime kickoff): forcing the kickoff reset path")
+            self._last_packet = flat.GamePacket(
+                players=last.players, boost_pads=last.boost_pads, balls=last.balls, teams=last.teams,
+                match_info=flat.MatchInfo(frame_num=last.match_info.frame_num,
+                                          seconds_elapsed=last.match_info.seconds_elapsed,
+                                          match_phase=flat.MatchPhase.GoalScored))
         super()._process_unused_packets()
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
         self.latency.add(elapsed_ms)
