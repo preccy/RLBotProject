@@ -10,7 +10,8 @@ Protocol (fixed, recorded in every report):
   "ball must touch the ground" rule at zero (simplifications vs. real Rocket League).
 * Sampling unit for uncertainty is the colour-swapped seed PAIR (the two matches share a seed and are
   correlated); goals inside a match are never treated as independent samples. The interval is a
-  percentile bootstrap over pairs of the pair-mean score (win = 1, draw = 0.5, loss = 0).
+  percentile bootstrap over pairs of the pair-mean score (win = 1, draw = 0.5, loss = 0); when every pair is
+  a clean sweep (all 1 or all 0) the exact Clopper-Pearson bound over pairs is used instead of [1, 1].
 * Deterministic (argmax) vs stochastic (sampled) inference is chosen per side and recorded.
 """
 
@@ -167,9 +168,18 @@ def eval_seeds(n_pairs: int, offset: int = 0) -> List[int]:
     return [EVAL_SEED_BASE + offset + i for i in range(n_pairs)]
 
 
-def bootstrap_ci(values: np.ndarray, n_resamples: int = 5000, level: float = 0.95, seed: int = 0) -> tuple[float, float]:
+def bootstrap_ci(values: np.ndarray, n_resamples: int = 5000, level: float = 0.95, seed: int = 0,
+                 unit_interval: bool = False) -> tuple[float, float]:
+    """Percentile bootstrap of the mean. With `unit_interval` (values in [0, 1], e.g. pair scores), a sample that is
+    entirely 1 (or entirely 0) gets the exact Clopper-Pearson bound instead of the degenerate [1, 1]: no resample can
+    contain a loss, but the true rate may still be below 1. For any [0, 1] variable with mean m, P(X = 1) <= m, so
+    P(all n = 1) <= m^n and the bound ((1 - level) / 2)^(1/n) is valid (conservative) for the mean score too."""
     if len(values) == 0:
         return float("nan"), float("nan")
+    values = np.asarray(values, dtype=float)
+    if unit_interval and (np.all(values == 1.0) or np.all(values == 0.0)):
+        bound = ((1 - level) / 2) ** (1.0 / len(values))
+        return (bound, 1.0) if values[0] == 1.0 else (0.0, 1.0 - bound)
     rng = np.random.default_rng(seed)
     samples = rng.choice(values, size=(n_resamples, len(values)), replace=True).mean(axis=1)
     lo, hi = np.quantile(samples, [(1 - level) / 2, 1 - (1 - level) / 2])
@@ -192,7 +202,7 @@ def summarise(results: List[MatchResult], seeds: List[int]) -> dict:
         "A_goals_for": int(sum(r.goals_blue if r.blue == "A" else r.goals_orange for r in results)),
         "A_goals_against": int(sum(r.goals_orange if r.blue == "A" else r.goals_blue for r in results)),
         "A_score": float(np.mean(scores)),
-        "A_score_ci95_pair_bootstrap": bootstrap_ci(pair_scores),
+        "A_score_ci95_pair_bootstrap": bootstrap_ci(pair_scores, unit_interval=True),
         "A_goal_diff_per_match": float(np.mean(pair_gd)),
         "A_goal_diff_ci95_pair_bootstrap": bootstrap_ci(pair_gd, seed=1),
         "overtime_matches": int(sum(r.overtime for r in results)),

@@ -1,0 +1,26 @@
+#:schema https://rlbot.org/schemas/match.json
+# 1v1: Psyonix All-Star bot (blue) vs BotCore (orange), standard 5-minute match.
+# Colour-swapped twin of match_vs_allstar.toml; used together by scripts/allstar_series.py.
+[rlbot]
+launcher = "Steam"
+auto_start_agents = true
+wait_for_agents = true
+
+[match]
+game_mode = "Soccar"
+game_map_upk = "Stadium_P"
+skip_replays = true
+enable_state_setting = false
+existing_match_behavior = "Restart"
+
+[mutators]
+match_length = "FiveMinutes"
+
+[[cars]]
+type = "Psyonix"
+skill = "AllStar"
+team = 0
+
+[[cars]]
+config_file = "bot.toml"
+team = 1

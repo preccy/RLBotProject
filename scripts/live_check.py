@@ -86,6 +86,9 @@ def main() -> int:
                     help="stage a demolition and goals with state setting (needs bot/match_live_events.toml)")
     ap.add_argument("--max-play-seconds", type=float, default=None,
                     help="stop after this much Active play time (after the scripted events, if any)")
+    ap.add_argument("--bundle", help="BotCore export bundle to play (sets BOTCORE_BUNDLE; default bot/model)")
+    ap.add_argument("--save-replay", action="store_true",
+                    help="ask Rocket League to save the match replay (Documents/My Games/Rocket League/TAGame/Demos)")
     args = ap.parse_args()
     if args.events and args.match == str(ROOT / "bot" / "match_live_selfplay.toml"):
         args.match = str(ROOT / "bot" / "match_live_events.toml")
@@ -93,6 +96,8 @@ def main() -> int:
     out = Path(args.out) if args.out else ROOT / "runs" / "live" / time.strftime("%Y%m%d-%H%M%S")
     out.mkdir(parents=True, exist_ok=True)
     os.environ["BOTCORE_LIVE_DIR"] = str(out.resolve())  # inherited by RLBotServer and the bot processes
+    if args.bundle:
+        os.environ["BOTCORE_BUNDLE"] = str(Path(args.bundle).resolve())
 
     from rlbot import flat
     from rlbot.managers import MatchManager
@@ -102,7 +107,11 @@ def main() -> int:
     manager = MatchManager()
     try:
         print(f"starting match {args.match}; diagnostics -> {out}")
-        manager.start_match(Path(args.match).resolve())
+        from rlbot.config import load_match_config
+
+        match_config = load_match_config(Path(args.match).resolve())
+        match_config.auto_save_replay = args.save_replay  # rlbot's toml loader does not read this field
+        manager.start_match(match_config)
         print(f"first packet after {time.time() - t0:.0f}s")
         last_phase = None
         deadline = t0 + args.max_minutes * 60

@@ -90,3 +90,17 @@ def test_promotion_rule():
     assert any("seed pairs" in p for p in check_promotion("cand", "best", [_report("cand", "best", 10, 0.9, 0.8)]))
     assert any("regression" in p for p in check_promotion("cand", "best", good + [_report("cand", "x", 120, 0.4, 0.3)]))
     assert any("current best" in p for p in check_promotion("cand", "best", [_report("cand", "x", 120, 0.7, 0.6)]))
+
+
+def test_bootstrap_ci_all_win_sample_is_not_degenerate():
+    # 150 pairs, every one a clean sweep: the percentile bootstrap alone would say [1, 1].
+    lo, hi = bootstrap_ci(np.ones(150), unit_interval=True)
+    assert hi == 1.0
+    assert lo == pytest.approx(0.025 ** (1 / 150))  # Clopper-Pearson, ~0.976
+    assert lo < 0.98
+    lo0, hi0 = bootstrap_ci(np.zeros(150), unit_interval=True)
+    assert (lo0, hi0) == (0.0, pytest.approx(1 - 0.025 ** (1 / 150)))
+    # non-degenerate samples keep the percentile bootstrap; unbounded statistics are unaffected
+    mixed = np.array([1.0] * 140 + [0.5] * 10)
+    assert bootstrap_ci(mixed, unit_interval=True) == bootstrap_ci(mixed)
+    assert bootstrap_ci(np.ones(10)) == (1.0, 1.0)
