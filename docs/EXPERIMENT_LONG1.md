@@ -76,9 +76,14 @@ per step 0.0048 -> 0.0097, entropy 3.44 -> 3.09.
 
 | Comparison | W-D-L | Score [95% CI] | Goals | Own goals / match (A) | Touches / min (A) | Airborne (A) |
 |---|---|---|---|---|---|---|
-| FINAL vs M2REF | 300-0-0 | 1.000 [1.000, 1.000] | 3,401-101 | 0.18 | 64.1 | 0.10 |
+| FINAL vs M2REF | 300-0-0 | 1.000 [0.976, 1.000]* | 3,401-101 | 0.18 | 64.1 | 0.10 |
 | FINAL vs R0 | 298-0-2 | 0.993 [0.983, 1.000] | 2,435-182 | 0.60 | 45.8 | 0.04 |
 | M2REF vs R0 | 165-56-79 | 0.643 [0.597, 0.690] | 396-223 | 0.73 | 4.7 | 0.27 |
+
+\* Corrected after the run (before long run 2): the percentile bootstrap originally reported [1.000, 1.000] for this
+all-win sample, which wrongly implies a guaranteed 100% win rate. With 150/150 clean-sweep pairs the exact
+Clopper-Pearson 95% interval over pairs is [0.976, 1.000]. The decision is unchanged (lower bound > 0.5). The
+stored report `runs/s1-long/eval/decision-final-vs-M2REF.json` still holds the old value.
 
 Own-goal difference vs R0, FINAL - M2REF, per match: **-0.133 [-0.26, -0.013]** (150 pairs).
 
