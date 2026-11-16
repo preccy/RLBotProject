@@ -63,3 +63,12 @@ Written and committed before the pre-training All-Star matches and before traini
 ---
 
 ## Results
+
+**Pre-training All-Star series (START, 4 matches):** 1-0-3, goals 15-16 (3-4, 4-6, 5-1, 3-5); BotCore own goals 2.
+Details: `runs/allstar/pre/summary.md`. Rocket League saved no replay files (`skip_replays = true` loads the map with
+`?noreplay`); the packet recordings and HTML top-down replays (`runs/allstar/pre/m*.html`) are the gameplay record.
+
+**Pause at the user's request (2026-11-16, ~21:40):** training stopped at iteration 3,648; last checkpoint
+iteration 3,600 (265,420,800 total steps; 98.5M of the 283.9M budget). Interim diagnostic (old seeds 0-39, 40 pairs,
+not a decision input): iteration 3,600 vs START 66-0-14, score 0.825 [0.725, 0.912], goals 485-257; own goals per
+match 0.39 (iter 3,600) vs 1.01 (START) in the same matches.
