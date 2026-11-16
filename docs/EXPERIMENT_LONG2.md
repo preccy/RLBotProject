@@ -72,3 +72,7 @@ Details: `runs/allstar/pre/summary.md`. Rocket League saved no replay files (`sk
 iteration 3,600 (265,420,800 total steps; 98.5M of the 283.9M budget). Interim diagnostic (old seeds 0-39, 40 pairs,
 not a decision input): iteration 3,600 vs START 66-0-14, score 0.825 [0.725, 0.912], goals 485-257; own goals per
 match 0.39 (iter 3,600) vs 1.01 (START) in the same matches.
+
+**Interim All-Star series (iteration 3,600, same fixed setup, user-requested; diagnostic only):** 3-1-0, goals 21-5
+(7-0, 6-3, 6-0, 2-2 stopped at regulation); BotCore own goals 0; BotCore shots 38 vs All-Star 7 (pre: 25 vs 17).
+Details: `runs/allstar/interim-iter3600/summary.md`.
