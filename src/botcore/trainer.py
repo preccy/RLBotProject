@@ -48,7 +48,7 @@ from botcore.opponents import OpponentEntry, OpponentRegistry
 
 AGENT_CONTROLLER_NAME = "botcore"
 # Config sections whose change on resume only affects throughput/bookkeeping, never what is learned.
-FREELY_CHANGEABLE = {("run", "total_iterations"), ("run", "device"), ("collect", "n_workers"),
+FREELY_CHANGEABLE = {("run", "total_iterations"), ("run", "device"), ("run", "name"), ("collect", "n_workers"),
                      ("collect", "envs_per_worker"), ("checkpoint", "save_every_iterations"),
                      ("checkpoint", "keep_last"), ("eval",)}
 
