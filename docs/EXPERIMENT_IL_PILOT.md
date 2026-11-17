@@ -6,15 +6,22 @@ useful dodges and better movement emerge without reducing match strength? Kickof
 one seed per arm and a short budget can show feasibility and absence of harm; they cannot establish improvement.
 
 ## Data
-* Session `s1`: 8 human-vs-BotCore matches recorded with `scripts/record_demo.ps1` (bot = deployed 11900, sampled).
+* Session `s1`: 3 human-vs-BotCore matches recorded with `scripts/record_demo.ps1` (bot = deployed 11900, sampled).
+  A small feasibility pilot: with two training matches the conclusions are correspondingly weaker.
+* Before training, `scripts/il_feasibility/count_usable.py` reports per match the usable movement blocks,
+  recoveries and complete jump-release-dodge sequences; a specific shortage is reported before asking for more
+  matches. Reference from the earlier argmax-opponent match: 4,130 usable blocks, 2,126 grounded movement blocks,
+  17 recoveries, 25 jump-release-dodge sequences (6 if the first-jump label must also be usable; 2 with approximate
+  direction); 23 dodge presses do not start from a ground jump within 1.3 s.
 * `scripts/il_feasibility/build_demos.py`: causal labels (see docs/IL_FEASIBILITY.md), kickoff + first 1 s,
   non-Active phases, packet gaps and demolitions excluded; `press_inflight` and `dodge_lost` blocks dropped from the
   loss; `approx_dir` dodge labels kept but reported separately.
-* Split by whole matches: m01-m06 train, m07-m08 held-out validation; the earlier argmax-opponent match
+* Split by whole matches: m01-m02 train, m03 held-out validation; the earlier argmax-opponent match
   (`runs/demos/pilot0-argmax-match.npz`) is a second held-out set. No frame-level random split.
 
 ## Arms (both resume from runs/reference/S3C-iter11900-checkpoint, same seed, rewards/architecture/action table unchanged)
-* CTRL: `vtb-control` configuration, 1,000 more iterations (73.7M learner steps, ~55 min).
+* CTRL: `vtb-control` configuration, 1,000 more iterations (73.7M learner steps, ~55 min). The budget is not
+  increased to compensate for the smaller dataset.
 * IL: identical plus an imitation term on the actor: L = L_PPO + lambda * mean(-log sum_{a in class(s, label)} pi(a|s))
   over a demonstration minibatch each update; `class` = state-equivalent table rows (scripts/il_feasibility/equiv.py),
   so the loss does not fight the policy's choice among rows that do the same thing. lambda is fixed in advance
