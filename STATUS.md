@@ -1,11 +1,22 @@
 # Project status
 
-Last updated 2026-11-16 (long run 1). Nothing here implies a rank or Rocket League skill level; all match results
+Last updated 2026-11-17 (long run 2 + overnight continuation). Nothing here implies a rank or Rocket League skill level; all match results
 are in RocketSim against random or earlier versions of the same lineage unless stated otherwise.
 
-## Current state (long run 1, docs/EXPERIMENT_LONG1.md, docs/LIVE_TEST_2.md)
+## Current state (long run 2 + overnight, docs/EXPERIMENT_LONG2.md)
 
-* **best_verified = `runs/s1-long` iteration 2,263** (weights `8d55b78c86c7`, 166.8M steps), also installed in
+* **best_verified = `runs/s1-long2` iteration 9,900** (weights `d4ee480068c2`, 729.9M total steps; frozen copy
+  `runs/reference/S2N-iter9900`), installed in `bot/model`. Previous deployed best S1L-iter2263 (`8d55b78c86c7`) is in
+  `bot/model.previous`. Same configuration as long run 1 throughout (obs-v1, lookup-90, 512x3, unchanged rewards).
+* Fresh-seed decisions (150 pairs each): vs S1L-iter2263 298-0-2, 0.993 [0.983, 1.000], own goals 0.23 vs 1.35 per
+  match; vs overnight start S2L-iter3600 281-0-19, 0.937 [0.907, 0.963]. Regression checks vs R0 / M2REF 80-0-0 each.
+* All-Star diagnostic (4 offline matches, not a rank estimate): pre 1-0-3 (15-16), interim 3-1-0 (21-5),
+  iteration 9,900 4-0-0 (40-4), runner fault-free.
+* No further training block has been started.
+
+## Previous state: long run 1 (docs/EXPERIMENT_LONG1.md, docs/LIVE_TEST_2.md)
+
+* best_verified (then) = `runs/s1-long` iteration 2,263 (weights `8d55b78c86c7`, 166.8M steps), also installed in
   `bot/model` (previous probe kept in `bot/model.previous`). It is a continuation of M2 run D-s202 for 155.0M steps
   with the configuration unchanged.
 * Pre-registered decision, 150 fresh seed pairs each:

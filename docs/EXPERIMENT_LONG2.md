@@ -105,3 +105,60 @@ Details: `runs/allstar/interim-iter3600/summary.md`.
 * **If promoted:** the fixed All-Star series is repeated with it (`--label night-<iter>`); it is installed in
   `bot/model` (old model kept in `bot/model.previous` and `runs/reference`) only if the live runner shows no faults.
 * Afterwards every training/test process is stopped; Windows is left running.
+
+## Overnight results (appended 2026-11-17 ~07:40)
+
+**Training.** Resumed from S2L-iter3600 at 01:33; reached the 9,900-iteration target and stopped by itself at 06:53:34
+(~5 h 20 min, inside the 7 h budget; the 08:20 watchdog never fired). 6,300 iterations = **464,486,400 added learner
+steps** (total 729,907,200), ~24k steps/s. No NaNs, policy faults, checkpoint errors or tracebacks; all checkpoints
+complete. Entropy ~3.07 -> ~3.1 (no collapse); runtime log-prob guard max ~1.2e-5.
+
+**~2-hourly diagnostics** (40 pairs vs S2L-iter3600, seeds 0-39; not decision inputs; no deterioration flag at any):
+
+| Iteration | W-D-L | Score [95% CI] | Goals | Own goals / match (cand. vs start) | Touches / min (cand. vs start) | Airborne |
+|---|---|---|---|---|---|---|
+| 5,550 | 65-0-15 | 0.812 [0.725, 0.887] | 485-285 | 0.46 vs 0.83 | 42.5 vs 39.3 | 0.13 |
+| 7,500 | 60-0-20 | 0.750 [0.637, 0.863] | 480-308 | 0.44 vs 0.73 | 33.7 vs 39.1 | 0.15 |
+| 9,450 | 74-0-6 | 0.925 [0.863, 0.975] | 579-193 | 0.25 vs 0.86 | 40.7 vs 36.3 | 0.15 |
+| 9,900 (final) | 72-0-8 | 0.900 [0.825, 0.963] | 552-215 | - | - | - |
+
+Earlier-candidate rule: no intermediate checkpoint beat the final's 0.900 by > 0.10, so FINAL (iteration 9,900) is
+the only candidate.
+
+**Final evaluations (fresh seeds):**
+
+| Comparison | Pairs | W-D-L | Score [95% CI] | Goals | Own goals / match (A vs B) |
+|---|---|---|---|---|---|
+| iter 9,900 vs S2L-iter3600 (offsets 4,000-4,149) | 150 | 281-0-19 | 0.937 [0.907, 0.963] | 2,200-815 | 0.29 vs 0.97 |
+| iter 9,900 vs best_verified S1L-iter2263 (offsets 5,000-5,149) | 150 | 298-0-2 | 0.993 [0.983, 1.000] | 2,707-570 | 0.23 vs 1.35 |
+| iter 9,900 vs R0 (seeds 0-39) | 40 | 80-0-0 | 1.000 [0.912, 1.000] | 1,317-14 | - |
+| iter 9,900 vs M2REF (seeds 0-39) | 40 | 80-0-0 | 1.000 [0.912, 1.000] | 1,307-7 | - |
+
+Own-goal difference per match (descriptive): vs S2L-iter3600 -0.68 [-0.81, -0.55]; vs S1L-iter2263 -1.13 [-1.26, -0.99].
+Behaviour vs S1L-iter2263 in the same matches: touches/min 40.4 vs 34.4, airborne 0.14 vs 0.08, mean boost 8.4 vs 5.7,
+supersonic 3.0% vs 2.2%.
+
+**Promotion: yes.** Lower bound 0.983 > 0.5 vs best_verified on 150 fresh pairs; regression checks 1.000 and 1.000
+(>= 0.45); `check_promotion` reports no problems. `runs/s1-long2` pointers: candidate = best_verified =
+`checkpoints/iter_009900` (weights `d4ee480068c2`). Frozen read-only copies: `runs/reference/S2N-iter9900-checkpoint`
+and `runs/reference/S2N-iter9900` (sha256-verified).
+
+**All-Star series (iteration 9,900, same fixed setup; diagnostic only, not a rank estimate):** **4-0-0, goals 40-4**
+(9-0, 13-1, 9-1, 9-2); BotCore own goals 0; shots 59 vs 9; All-Star saves 13, BotCore saves 0. Runner: fallbacks 0,
+missed kickoff resets 0, p99 inference latency <= 1.6 ms, no tracebacks; rlgym-rlbot tick-recovery warnings (12 missed
+step ticks over four matches) at the level of the earlier series (8 and 21). Details: `runs/allstar/night-9900/`.
+
+| Series | Policy | W-D-L | Goals | BotCore own goals | Shots (BotCore vs All-Star) |
+|---|---|---|---|---|---|
+| pre | S1L-iter2263 | 1-0-3 | 15-16 | 2 | 25 vs 17 |
+| interim | S2L-iter3600 | 3-1-0 | 21-5 | 0 | 38 vs 7 |
+| night-9900 | S2N-iter9900 | 4-0-0 | 40-4 | 0 | 59 vs 9 |
+
+**Deployed:** the runner showed no faults, so iteration 9,900 was installed in `bot/model` (`d4ee480068c2`); the previous
+deployed model S1L-iter2263 (`8d55b78c86c7`) is in `bot/model.previous` and `runs/reference/S1L-iter2263`.
+
+**Not tested / caveats:** all simulator opponents are earlier policies of the same lineage plus a random policy, so the
+scores measure progress along the lineage, not absolute strength. The All-Star series is four matches against one
+fixed built-in bot. Rocket League saved no replay files (`skip_replays`); the gameplay record is the packet recordings
+and HTML replays. No HTML replays of iteration 9,900 vs the start in RocketSim were made overnight. The four-hour
+block's originally planned FINAL-vs-S1L decision on offsets 4,000-4,149 was superseded by the overnight plan above.

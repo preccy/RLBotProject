@@ -1,6 +1,6 @@
 {
   "manifest_format": 1,
-  "created_at": "2026-11-15T22:41:11",
+  "created_at": "2026-11-16T15:51:51",
   "architecture": {
     "schema": 1,
     "kind": "mlp",
@@ -27,12 +27,12 @@
     "rlbot_delay": true,
     "normalisation": "fixed scales defined by the obs spec; no running statistics"
   },
-  "weights_sha256": "a75feaa9cfb1cb99c8dfaff689a37416f3e3c62f258c7ad44e6ee87a7bb662d6",
+  "weights_sha256": "8d55b78c86c7b212a03ce5eda0ff2ace0574a19a1d249a4f8b7c668a8ae19fbe",
   "source": {
-    "checkpoint": "C:\\Users\\TomPr\\RLBotProject\\runs\\s1w-probe\\checkpoints\\iter_000060",
-    "run": "s1w-probe",
-    "iteration": 60,
-    "learner_timesteps": 4423680,
+    "checkpoint": "C:\\Users\\TomPr\\RLBotProject\\runs\\s1-long\\checkpoints\\iter_002263",
+    "run": "s1-long",
+    "iteration": 2263,
+    "learner_timesteps": 166846464,
     "curriculum_stage": "s1-contact"
   },
   "dependencies": {
@@ -49,8 +49,8 @@
     "rlbot_flatbuffers": "0.18.11"
   },
   "code": {
-    "git_commit": "HEAD",
-    "dirty": false,
+    "git_commit": "633e24ac907170a629d71df53ba441f5dab7a315",
+    "dirty": true,
     "botcore_version": "0.1.0"
   }
 }
