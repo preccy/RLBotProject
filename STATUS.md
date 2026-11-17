@@ -11,6 +11,10 @@ are in RocketSim against random or earlier versions of the same lineage unless s
 * Removing `velocity_to_ball` (EXP branch, same start and budget) was **worse**: EXP vs CTRL 0.407 [0.353, 0.458];
   EXP vs S2N-iter9900 0.497 [0.445, 0.548]. One seed per arm. The reward configuration stays unchanged.
 * All-Star diagnostic (4 offline matches): 4-0-0 (37-7). No further training block has been started.
+* Inference check (no training; reports in `runs/argmax-eval/`): the same 11900 policy with argmax actions beat its
+  sampled self 0.675 [0.605, 0.745] (100 fresh pairs, offsets 15,000+) and scored 0.805 vs sampled 9900 against
+  0.620 for sampled 11900 on the same 100 pairs (paired difference +0.185 [+0.100, +0.270]). No stalls or action
+  loops found in replays/metrics. The deployed bot still samples; argmax is opt-in via `BOTCORE_DETERMINISTIC=1`.
 
 ## Previous state: long run 2 + overnight (docs/EXPERIMENT_LONG2.md)
 
