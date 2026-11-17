@@ -19,6 +19,17 @@ one seed per arm and a short budget can show feasibility and absence of harm; th
 * Split by whole matches: m01-m02 train, m03 held-out validation; the earlier argmax-opponent match
   (`runs/demos/pilot0-argmax-match.npz`) is a second held-out set. No frame-level random split.
 
+## Recorded data (2026-11-17, `runs/demos/s1.npz`, built with build_demos.py)
+| Match | Score (human-bot) | Usable blocks | Ground movement blocks | Jump-release-dodge sequences | Recoveries | Approx-direction dodge blocks |
+|---|---|---|---|---|---|---|
+| m01 (train) | 13-1 | 4,223 | 2,063 | 30 | 11 | 30 |
+| m02 (train) | 13-2 | 4,187 | 2,197 | 39 | 8 | 24 |
+| m03 (held out) | 20-1 | 4,252 | 2,079 | 33 | 11 | 12 |
+
+All three runs fault-free (0 fallbacks, 0 policy faults, 0 missed kickoff resets). Every in-grid dodge kept its
+press-release-press labels except one in m03 (3 blocks flagged `dodge_lost`). Shortage: recoveries (19 train / 11
+held out) are too few to assess; recovery behaviour is reported descriptively only and is not a pilot question.
+
 ## Arms (both resume from runs/reference/S3C-iter11900-checkpoint, same seed, rewards/architecture/action table unchanged)
 * CTRL: `vtb-control` configuration, 1,000 more iterations (73.7M learner steps, ~55 min). The budget is not
   increased to compensate for the smaller dataset.
