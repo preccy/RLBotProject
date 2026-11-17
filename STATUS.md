@@ -1,11 +1,20 @@
 # Project status
 
-Last updated 2026-11-17 (long run 2 + overnight continuation). Nothing here implies a rank or Rocket League skill level; all match results
+Last updated 2026-11-17 (VTB comparison). Nothing here implies a rank or Rocket League skill level; all match results
 are in RocketSim against random or earlier versions of the same lineage unless stated otherwise.
 
-## Current state (long run 2 + overnight, docs/EXPERIMENT_LONG2.md)
+## Current state (VTB comparison, docs/EXPERIMENT_VTB.md)
 
-* **best_verified = `runs/s1-long2` iteration 9,900** (weights `d4ee480068c2`, 729.9M total steps; frozen copy
+* **best_verified = `runs/s3-ctrl` iteration 11,900** (weights `ae97d768444d`, 877.4M total steps; frozen copy
+  `runs/reference/S3C-iter11900`), installed in `bot/model`; S2N-iter9900 in `bot/model.previous`.
+  It is the unchanged-config control branch: vs S2N-iter9900 0.665 [0.613, 0.717] (150 fresh pairs).
+* Removing `velocity_to_ball` (EXP branch, same start and budget) was **worse**: EXP vs CTRL 0.407 [0.353, 0.458];
+  EXP vs S2N-iter9900 0.497 [0.445, 0.548]. One seed per arm. The reward configuration stays unchanged.
+* All-Star diagnostic (4 offline matches): 4-0-0 (37-7). No further training block has been started.
+
+## Previous state: long run 2 + overnight (docs/EXPERIMENT_LONG2.md)
+
+* best_verified (then) = `runs/s1-long2` iteration 9,900 (weights `d4ee480068c2`, 729.9M total steps; frozen copy
   `runs/reference/S2N-iter9900`), installed in `bot/model`. Previous deployed best S1L-iter2263 (`8d55b78c86c7`) is in
   `bot/model.previous`. Same configuration as long run 1 throughout (obs-v1, lookup-90, 512x3, unchanged rewards).
 * Fresh-seed decisions (150 pairs each): vs S1L-iter2263 298-0-2, 0.993 [0.983, 1.000], own goals 0.23 vs 1.35 per
