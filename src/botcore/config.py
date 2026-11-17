@@ -94,6 +94,15 @@ class SelfPlayConfig:
 
 
 @dataclass
+class ImitationConfig:
+    # Auxiliary imitation term on the actor (botcore.imitation, docs/EXPERIMENT_IL_PILOT.md). coef 0 = off.
+    coef: float = 0.0
+    dataset: str = ""  # npz written by scripts/il_feasibility/build_demos.py
+    matches: tuple = ()  # match indices in the npz used for training (held-out matches are simply not listed)
+    batch_size: int = 2048
+
+
+@dataclass
 class CheckpointConfig:
     save_every_iterations: int = 10
     keep_last: int = 5
@@ -126,6 +135,7 @@ class Config:
     ppo: PPOConfig = field(default_factory=PPOConfig)
     collect: CollectConfig = field(default_factory=CollectConfig)
     self_play: SelfPlayConfig = field(default_factory=SelfPlayConfig)
+    imitation: ImitationConfig = field(default_factory=ImitationConfig)
     checkpoint: CheckpointConfig = field(default_factory=CheckpointConfig)
     eval: EvalConfig = field(default_factory=EvalConfig)
 
@@ -255,6 +265,11 @@ def validate(cfg: Config) -> None:
     f = cfg.self_play.frozen_opponent_fraction
     need(0.0 <= f < 1.0, "[self_play] frozen_opponent_fraction must be in [0, 1)")
     need(cfg.self_play.snapshot_every_iterations >= 1, "[self_play] snapshot_every_iterations must be >= 1")
+    need(cfg.imitation.coef >= 0.0, "[imitation] coef must be >= 0")
+    if cfg.imitation.coef > 0:
+        need(bool(cfg.imitation.dataset), "[imitation] dataset is required when coef > 0")
+        need(len(cfg.imitation.matches) > 0, "[imitation] matches must list the training match indices")
+        need(cfg.imitation.batch_size >= 1, "[imitation] batch_size must be >= 1")
 
     learner_agents = learner_agent_slots(cfg)
     steps_per_iteration = learner_agents * c.rollout_steps

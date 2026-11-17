@@ -67,8 +67,9 @@ def resolve_device(name: str) -> torch.device:
 
 def config_diff(old: Dict[str, Any], new: Dict[str, Any]) -> List[str]:
     diffs = []
+    defaults = Config().to_dict()  # a section missing from an older checkpoint means "all defaults"
     for section in sorted(set(old) | set(new)):
-        a, b = old.get(section, {}), new.get(section, {})
+        a, b = old.get(section, defaults.get(section, {})), new.get(section, defaults.get(section, {}))
         for key in sorted(set(a) | set(b)):
             va, vb = a.get(key), b.get(key)
             if isinstance(va, (list, tuple)) and isinstance(vb, (list, tuple)):
@@ -147,6 +148,18 @@ class Trainer:
             checkpoint_load_folder=None if resume_from is None else str(Path(resume_from) / "ppo_learner"),
         ))
         self.policy: ActorCriticPolicy = self.learner.actor_critic  # type: ignore[assignment]
+        self.imitation = None
+        if cfg.imitation.coef > 0:
+            from botcore.deploy.live_report import feature_names
+            from botcore.imitation import ImitationTerm, load_demos
+
+            obs, _, masks = load_demos(cfg.imitation.dataset, cfg.imitation.matches,
+                                       feature_names().index("self.on_ground[0]"))
+            self.imitation = ImitationTerm(self.policy.actor, obs, masks, cfg.imitation.coef, cfg.imitation.batch_size,
+                                           cfg.ppo.max_grad_norm, self.device, seed=cfg.run.seed + 31)
+            self.imitation.wrap(self.learner.optimizers[0])  # [actor, critic], see _optimizers_factory
+            log(f"imitation term: coef {cfg.imitation.coef}, {len(obs)} demonstration blocks from matches "
+                f"{list(cfg.imitation.matches)} of {cfg.imitation.dataset}, batch {self.imitation.batch_size}")
 
         self.trajectory_processor = GAETrajectoryProcessor()
         self.buffer = NumpyExperienceBuffer(self.trajectory_processor)
@@ -425,6 +438,8 @@ class Trainer:
                                         collect_s=t1 - t0, gae_s=t2 - t1, update_s=t3 - t2, save_s=t4 - t3,
                                         total_s=t4 - t0, process=process)
                 metrics["checks"] = {"logp_recompute_max_abs_err": logp_err}
+                if self.imitation is not None:
+                    metrics["imitation"] = self.imitation.pop_stats()
                 metrics_file.write(json.dumps(metrics) + "\n")
                 metrics_file.flush()
                 reports.append(IterationReport(self.iteration, metrics))
@@ -497,7 +512,10 @@ class Trainer:
         return (f"it {m['iteration']:5d} | steps {m['learner_timesteps']:>11,} | {th['learner_steps_per_s']:7.0f} sps "
                 f"(collect {t['collect']:.1f}s, update {t['update']:.1f}s) | ent {p['entropy']:.3f} kl {p['approx_kl']:.4f} "
                 f"clip {p['clip_fraction']:.3f} vloss {p['value_loss']:.3f} | ep {m['episodes']['finished']} "
-                f"goal% {'-' if goal is None else f'{100 * goal:.0f}'}" + (f" | saved {saved.name}" if saved else ""))
+                f"goal% {'-' if goal is None else f'{100 * goal:.0f}'}"
+                + (f" | il {m['imitation']['loss']:.2f} grad il/ppo {m['imitation']['il_grad_norm']:.3f}/"
+                   f"{m['imitation']['ppo_actor_grad_norm']:.3f}" if m.get("imitation") else "")
+                + (f" | saved {saved.name}" if saved else ""))
 
 
 def start_run(cfg: Config, run_dir: Path, config_text: Optional[str] = None) -> Trainer:

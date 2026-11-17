@@ -1,57 +1,75 @@
-# Imitation pilot: plan (DRAFT; finalised and committed before any training, after the demonstrations exist)
+# Imitation pilot (pre-registered; small feasibility pilot)
+
+Written and committed before the preflight and before either arm trains. Results are appended under "Results";
+nothing above it is edited once training starts.
 
 ## Question
 Does adding a modest imitation loss on recorded human play to the unchanged continuation of iteration 11900 make
-useful dodges and better movement emerge without reducing match strength? Kickoffs are excluded. One demonstrator,
-one seed per arm and a short budget can show feasibility and absence of harm; they cannot establish improvement.
-
-## Data
-* Session `s1`: 3 human-vs-BotCore matches recorded with `scripts/record_demo.ps1` (bot = deployed 11900, sampled).
-  A small feasibility pilot: with two training matches the conclusions are correspondingly weaker.
-* Before training, `scripts/il_feasibility/count_usable.py` reports per match the usable movement blocks,
-  recoveries and complete jump-release-dodge sequences; a specific shortage is reported before asking for more
-  matches. Reference from the earlier argmax-opponent match: 4,130 usable blocks, 2,126 grounded movement blocks,
-  17 recoveries, 25 jump-release-dodge sequences (6 if the first-jump label must also be usable; 2 with approximate
-  direction); 23 dodge presses do not start from a ground jump within 1.3 s.
-* `scripts/il_feasibility/build_demos.py`: causal labels (see docs/IL_FEASIBILITY.md), kickoff + first 1 s,
-  non-Active phases, packet gaps and demolitions excluded; `press_inflight` and `dodge_lost` blocks dropped from the
-  loss; `approx_dir` dodge labels kept but reported separately.
-* Split by whole matches: m01-m02 train, m03 held-out validation; the earlier argmax-opponent match
-  (`runs/demos/pilot0-argmax-match.npz`) is a second held-out set. No frame-level random split.
+complete, useful dodges appear without a measurable loss of match strength? Kickoffs are excluded from the data.
+Two training matches from one demonstrator, one seed per arm and 1,000 iterations can show feasibility and give a
+first, uncertain read on harm; they cannot establish improvement. An inconclusive match comparison is reported as
+inconclusive, not as "no harm". Recovery behaviour is reported descriptively only.
 
 ## Recorded data (2026-11-17, `runs/demos/s1.npz`, built with build_demos.py)
 | Match | Score (human-bot) | Usable blocks | Ground movement blocks | Jump-release-dodge sequences | Recoveries | Approx-direction dodge blocks |
 |---|---|---|---|---|---|---|
-| m01 (train) | 13-1 | 4,223 | 2,063 | 30 | 11 | 30 |
-| m02 (train) | 13-2 | 4,187 | 2,197 | 39 | 8 | 24 |
-| m03 (held out) | 20-1 | 4,252 | 2,079 | 33 | 11 | 12 |
+| m01 (train, index 0) | 13-1 | 4,223 | 2,063 | 30 | 11 | 30 |
+| m02 (train, index 1) | 13-2 | 4,187 | 2,197 | 39 | 8 | 24 |
+| m03 (held out, index 2) | 20-1 | 4,252 | 2,079 | 33 | 11 | 12 |
 
 All three runs fault-free (0 fallbacks, 0 policy faults, 0 missed kickoff resets). Every in-grid dodge kept its
 press-release-press labels except one in m03 (3 blocks flagged `dodge_lost`). Shortage: recoveries (19 train / 11
-held out) are too few to assess; recovery behaviour is reported descriptively only and is not a pilot question.
+held out) are too few to assess. Labels: causal, frames f+2..f+9 for the observation at f (docs/IL_FEASIBILITY.md);
+`press_inflight` and `dodge_lost` blocks are dropped from the loss; `approx_dir` dodges kept.
+m03 is used for nothing but the final held-out report (no tuning, no preflight decision). The earlier argmax-opponent
+match (`runs/demos/pilot0-argmax-match.npz`) informed the label design, so it is a secondary diagnostic only.
 
-## Arms (both resume from runs/reference/S3C-iter11900-checkpoint, same seed, rewards/architecture/action table unchanged)
-* CTRL: `vtb-control` configuration, 1,000 more iterations (73.7M learner steps, ~55 min). The budget is not
-  increased to compensate for the smaller dataset.
-* IL: identical plus an imitation term on the actor: L = L_PPO + lambda * mean(-log sum_{a in class(s, label)} pi(a|s))
-  over a demonstration minibatch each update; `class` = state-equivalent table rows (scripts/il_feasibility/equiv.py),
-  so the loss does not fight the policy's choice among rows that do the same thing. lambda is fixed in advance
-  (proposed 0.02: the initial imitation term ~0.16 is the same order as the PPO objective, not dominant), no sweep.
-* Needed before running (not built yet): ~60 lines in the trainer (load the npz, sample a demo minibatch, add the
-  term, log train / held-out imitation metrics every 50 iterations), an `[imitation]` config block, tests.
-* Preflight (not counted): 20 iterations of IL; abort if PPO approx_kl or clip fraction leave their usual range
-  (kl ~0.002, clip ~0.02) or held-out imitation loss does not fall.
+## Arms
+Both resume from the same original checkpoint `runs/reference/S3C-iter11900-checkpoint` (read-only), same seed;
+rewards, architecture, observation contract, action table and PPO settings unchanged. Run one after the other,
+Rocket League closed.
+* CTRL `runs/s4-ctrl`, `configs/experiments/il-control.toml`: 1,000 iterations (target 12,900; 73,728,000 learner
+  steps). No budget increase to compensate for the small dataset.
+* IL `runs/s4-il`, `configs/experiments/il-exp.toml`: identical plus `[imitation] coef = 0.02, matches = [0, 1],
+  batch_size = 2048` (resumed with `--allow-config-change`, which permits exactly that block).
+* Imitation term (`src/botcore/imitation.py`): loss = mean over a demonstration minibatch of
+  -log sum_{a in class} pi(a|s), with `class` the table rows equivalent to the human label in that state. Added via a
+  wrapper on the actor optimizer's step: after the library has accumulated and clipped the PPO gradients, the wrapper
+  adds 0.02 x grad(imitation loss) on one minibatch of 2,048 blocks and re-clips the actor gradient to max_grad_norm
+  0.5 (2 updates per iteration). Logged every iteration: imitation loss, its weighted value, PPO and imitation actor
+  gradient norms, their cosine, combined norm before clipping.
 
-## Evaluation (fresh seed offsets from 17,000; every policy sampled, as in all earlier decisions)
-1. IL vs CTRL head-to-head, 100 pairs: IL is "worse" if the 95% CI upper bound < 0.5. No-harm requires not worse.
-2. IL and CTRL each vs S3C-iter11900, 100 pairs; regression checks vs R0 / M2REF (40 pairs).
-3. Held-out human matches: equivalence-class accuracy, mean log P(class), probability of a jump row at the human's
-   dodge presses (baseline 11900: 9.8%, -7.90, ~0).
-4. Dodge use in the evaluation matches (supporting, not an objective): dodges per car-minute (now 0) and the share
-   followed within 0.5 s by higher speed towards the ball or a touch; own goals per match.
-5. If IL is not worse: one recorded human match against it for qualitative feedback.
+## Preflight (20 iterations in `runs/il-preflight`, discarded; neither arm starts from it)
+Pass requires all of: no NaN/inf in the imitation loss or gradients (enforced in code); imitation loss on a fixed
+4,096-block sample of the TRAINING matches lower after 20 iterations than before; mean imitation gradient norm >= 10%
+of the PPO actor gradient norm (measurable contribution); PPO approx_kl < 0.01 and clip fraction < 0.1 on every
+iteration. On failure: stop and report; no setting is tuned.
 
-## Decisions
-* Promotion only by the standing rule vs best_verified (11900): >= 100 fresh pairs, CI lower bound > 0.5,
-  regression checks >= 0.45. Otherwise 11900 stays best_verified and deployed.
-* Dodges emerging is reported, never optimised or used alone as a success criterion.
+## Evaluation (fresh seed offsets from 17,000; every policy samples its actions, as in all earlier decisions)
+1. **Held-out probability of human jump/dodge actions** (m03 primary, pilot0 secondary) for 11900, CTRL-final and
+   IL-final: mean -log P(class) over all usable blocks; argmax-in-class accuracy; mean P(class) at human first jumps
+   and at human dodge presses; P(any jump row) at human dodge presses.
+2. **Complete dodges in simulated play**: CTRL-final and IL-final each vs S3C-iter11900, 20 colour-swapped pairs
+   (offsets 17,400-17,419, 40 matches of 300 s): dodges (has_flipped rising edges) and jumps per car-minute.
+3. **Usefulness of those dodges** (supporting, never an objective): per dodge, speed change 0.5 s after the press,
+   change in velocity towards the ball, share with a ball touch within 1.0 s, share back on four wheels within 1.0 s;
+   own goals per match. Recoveries (landing after >= 0.5 s airborne) and the share reaching 1,000 uu/s within 1 s:
+   descriptive only.
+4. **Match strength**: IL vs CTRL head-to-head, 100 pairs (offsets 17,000-17,099); IL and CTRL each vs S3C-iter11900,
+   100 pairs (offsets 17,200-17,299, same seeds for both); regression checks vs R0 and M2REF, 40 pairs (seeds 0-39).
+
+## Decision rules (fixed now)
+* Head-to-head: IL **worse** if the 95% CI upper bound < 0.5; **better** if the lower bound > 0.5; otherwise
+  **inconclusive** (stated as such, with the interval).
+* Imitation effect on held-out human actions: reported with the change from 11900 and from CTRL; no threshold.
+* Dodges "emerge" only if IL-final executes complete dodges in simulated matches at a rate clearly above CTRL
+  (CTRL and 11900 are at ~0); their usefulness is described, not scored.
+* Promotion (standing rule): a final may replace S3C-iter11900 as best_verified only with 95% CI lower bound > 0.5
+  vs S3C-iter11900 (100 fresh pairs) and >= 0.45 in both regression checks. If both qualify: IL if better
+  head-to-head, otherwise CTRL. A promoted checkpoint is installed in bot/model only after the fixed 4-match All-Star
+  series shows no runner faults. Otherwise S3C-iter11900 stays best_verified and deployed.
+* No extension, no further demonstrations and no second coefficient if the result is inconclusive.
+
+---
+
+## Results
