@@ -30,11 +30,13 @@ def ctl(c) -> np.ndarray:
                     dtype=np.float32)
 
 
-def nearest_row(target: np.ndarray, on_ground) -> int:
-    """on_ground: bool, or the fraction of the block's ticks spent on the ground (mixed blocks use both weight sets)."""
+def nearest_row(target: np.ndarray, on_ground, dodge=None) -> int:
+    """on_ground: bool, or the fraction of the block's ticks spent on the ground (mixed blocks use both weight sets).
+    dodge: None keeps the original rule (any airborne jump block); True/False states explicitly whether this block
+    starts a dodge, the only case where the game's yaw+roll sum sets the direction and yaw may be moved onto roll."""
     t = target.copy()
     gf = float(on_ground)
-    if gf < 1 and t[5] == 1:  # dodge: the game uses yaw+roll for the side component; table jump rows have yaw=0
+    if (dodge if dodge is not None else (gf < 1 and t[5] == 1)):  # dodge: the game uses yaw+roll for the side component; table jump rows have yaw=0
         t[4] = np.clip(t[3] + t[4], -1, 1)
         t[3] = 0
     w = (W_GROUND if gf == 1 else W_AIR if gf == 0 else np.maximum(W_GROUND, W_AIR)) + 0.01

@@ -14,11 +14,16 @@ argument). Nothing was trained; iteration 11900 stays deployed.
   replays.
 * The game sums yaw + roll for the dodge side component (pitch -1, yaw -1, roll -1 -> dodge_dir (0.45, -0.89)).
 
-## Observations from the human's perspective
-* `CompatObsPipeline` (the live bot's path) rebuilt the bot's own 5,248 recorded observations exactly (max diff 0).
-* The same pipeline for the human's player id: 5,202 decisions, finite, self position exact (outside demolition).
-* Reconstructed rather than read: previous action (the previous mapped table row, not raw input), pad timers
-  (PadTimerTracker), flip availability/window (rlgym-compat + dodge-timeout fix), on_ground (AirState heuristic).
+## Observations from the human's perspective: what is verified and what is reconstructed
+* Verified: `CompatObsPipeline` re-run on the recording reproduces the bot's own 5,248 logged observations exactly.
+  This shows the offline path equals the live path; it is a consistency check of the code, NOT independent proof
+  that any feature is physically correct, and it says nothing extra about the human's features.
+* Verified for the human: self position equals the packet position (exact outside demolition); the pipeline is
+  updated packet by packet and each observation is built before the next packet is read (causal by construction).
+* Reconstructed for the human, not independently verified: previous action (the previous mapped table row, a
+  modelling choice, not the raw input); pad timers (inferred from is_active edges and fixed cooldowns);
+  flip availability / flip window (derived from has_jumped / dodge_timeout); on_ground (AirState heuristic, can
+  disagree for a few ticks around take-off and landing).
 
 ## Action mapping (state-aware: ground uses throttle/steer/jump/boost/handbrake, air uses pitch/yaw/roll/jump/boost)
 * Tick agreement, event-aligned mapping (naive sample-and-hold in brackets): throttle 98% (97), steer 94% (90),
@@ -55,3 +60,23 @@ argument). Nothing was trained; iteration 11900 stays deployed.
 * Replay files (correction): Rocket League .replay files do contain partial control information (replicated
   throttle/steer/handbrake and boost/jump/dodge activity, dodge direction), but not the full per-tick input, and at
   network rate; the rest needs reconstruction from physics. Not tested here (no parser installed).
+
+## Supervised-label timing (`scripts/il_feasibility/build_demos.py`)
+* Training runs RocketSimEngine with `rlbot_delay=True`: the first tick of each decision still uses the previous
+  controls, so an action chosen on the state at tick t controls ticks t+2..t+9. Since `last_input` at packet k
+  produced packet k's state, the label for the observation at frame f is the human input of frames f+2..f+9, and
+  the previous-action feature is the row for frames f-6..f+1 (the action already committed).
+* Labels are causal: a jump state machine decides each block's jump bit from that block's window and earlier ones
+  only; a press in the first 4 ticks of a window starts in that block (up to 3 ticks early), a later press in the
+  next block (up to 4 ticks late), and a released block is forced between presses. Measured offsets on the recorded
+  match: -3..+6 ticks. Every in-grid dodge (60/60) becomes a fresh airborne jump label within one block.
+* Leak checks: prev_action never has jump set at a jump onset (0%); no unflagged first-jump label whose observation
+  already shows the jump (0%); labels whose press began before the observation are flagged `press_inflight`
+  (~40% of first-jump onsets) and should be excluded from an imitation loss (the bot itself can never be in that
+  state). Yaw is moved onto roll only at a dodge press (where the game sums yaw+roll); elsewhere jump rows drop yaw.
+* Worked example (frames 2035-2067): ground -> first jump (label front-pitched jump) -> hold -> release with air
+  control -> dodge press labelled forward-right diagonal (pitch -1, roll +1 from the human's yaw +1) one block before
+  the observation shows has_flipped; prev_action equals the previous label throughout.
+* Baselines on the one match (4,130 labelled blocks, flagged ones excluded): repeat-previous-action 53.8%
+  (state-equivalent rows); iteration 11900's argmax is in the human's equivalence class 9.8% of the time (ground
+  driving 17%, air control 2%), mean log P = -7.90, and ~0 probability at the human's first jumps and dodge presses.
