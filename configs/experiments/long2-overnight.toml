@@ -1,0 +1,82 @@
+# Long run 2, overnight continuation (docs/EXPERIMENT_LONG2.md, 'Overnight continuation'): resumes runs/s1-long2
+# from iteration 3600 (frozen copy runs/reference/S2L-iter3600-checkpoint). Identical to long2.toml except
+# run.total_iterations (absolute: 3600 + 6300) and checkpoint.keep_last (200, so no checkpoint of this run is pruned).
+# Resuming refuses any learning-relevant difference.
+
+[run]
+name = "s1-long2"
+seed = 202
+device = "auto"
+total_iterations = 9900
+runs_dir = "runs"
+stage = "s1-contact"
+
+[env]
+team_size = 1
+action_repeat = 8
+rlbot_delay = true
+no_touch_timeout_seconds = 30.0
+episode_timeout_seconds = 300.0
+
+[env.scenario_weights]
+kickoff = 0.5
+open_play = 0.2
+shot = 0.08
+save = 0.08
+low_boost_defence = 0.04
+recovery = 0.05
+aerial = 0.05
+
+[rewards]
+team_spirit = 0.0
+
+[rewards.weights]
+goal_scored = 3.0
+goal_conceded = 3.0
+ball_touch = 0.5
+velocity_to_ball = 0.5
+ball_to_goal = 1.5
+boost_economy = 0.1
+
+[model]
+kind = "mlp"
+actor_layers = [512, 512, 512]
+critic_layers = [512, 512, 512]
+embed_dim = 128
+n_heads = 4
+n_attention_layers = 2
+head_layers = [256, 256]
+
+[ppo]
+gamma = 0.99
+gae_lambda = 0.95
+n_epochs = 2
+batch_size = 24576
+n_minibatches = 1
+actor_lr = 0.0003
+critic_lr = 0.0003
+ent_coef = 0.01
+clip_range = 0.2
+max_grad_norm = 0.5
+advantage_standardization = true
+standardize_returns = true
+reward_clip = 10.0
+
+[collect]
+n_workers = 12
+envs_per_worker = 6
+rollout_steps = 512
+
+[self_play]
+frozen_opponent_fraction = 0.0
+snapshot_every_iterations = 40
+
+[checkpoint]
+save_every_iterations = 50
+keep_last = 200
+
+[eval]
+n_seed_pairs = 16
+match_seconds = 300.0
+overtime_max_seconds = 120.0
+deterministic = false

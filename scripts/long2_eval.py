@@ -21,10 +21,11 @@ from long1_eval import bootstrap_mean_ci, own_goals_by_pair, side_stats  # noqa:
 
 RUN = ROOT / "runs" / "s1-long2"
 OUT = RUN / "eval"
-START = ROOT / "runs" / "reference" / "S1L-iter2263"
+START = ROOT / "runs" / "reference" / "S1L-iter2263"  # also the current best_verified
+NIGHT_START = ROOT / "runs" / "reference" / "S2L-iter3600"  # frozen start of the overnight continuation
 R0 = ROOT / "runs" / "reference" / "R0-random-init"
 M2REF = ROOT / "runs" / "reference" / "M2-D-s202-iter160"
-FINAL_ITER = int(sys.argv[2]) if len(sys.argv) > 2 else 6113
+FINAL_ITER = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[1] in ("final", "decide", "all") else 6113
 FRESH = dict(pairs=150, seed_offset=4000)
 DIAG = dict(pairs=40, seed_offset=0)
 
@@ -93,8 +94,51 @@ def decide() -> dict:
     return result
 
 
+def diag(iteration: int, seed_offset: int = 0) -> dict:
+    """Overnight diagnostic: checkpoint vs the frozen overnight start, 40 pairs. Not a decision input."""
+    rep = run_eval(f"night-diag-iter{iteration}-vs-S2L3600-off{seed_offset}", bundle(iteration), NIGHT_START,
+                   pairs=40, seed_offset=seed_offset)
+    out = {"iteration": iteration, "seed_offset": seed_offset, "candidate": side_stats(rep, "A"),
+           "start": side_stats(rep, "B"), "behaviour": {"candidate": behaviour(rep, "A"), "start": behaviour(rep, "B")}}
+    print(json.dumps(out, indent=1))
+    return out
+
+
+def overnight(iteration: int) -> dict:
+    """Overnight final evaluation (fresh seeds), as written in docs/EXPERIMENT_LONG2.md before the night started."""
+    b = bundle(iteration)
+    reps = {
+        "vs_S2L3600": run_eval(f"night-final-iter{iteration}-vs-S2L3600", b, NIGHT_START, pairs=150, seed_offset=4000),
+        "vs_best_S1L2263": run_eval(f"night-final-iter{iteration}-vs-S1L2263", b, START, pairs=150, seed_offset=5000),
+        "diag_vs_R0": run_eval(f"night-final-iter{iteration}-vs-R0", b, R0, **DIAG),
+        "diag_vs_M2REF": run_eval(f"night-final-iter{iteration}-vs-M2REF", b, M2REF, **DIAG),
+    }
+    out = {k: side_stats(r, "A") for k, r in reps.items()}
+    for k in ("vs_S2L3600", "vs_best_S1L2263"):
+        a, o = own_goals_by_pair(reps[k], "A"), own_goals_by_pair(reps[k], "B")
+        diff = np.array([a[x] - o[x] for x in sorted(a)])
+        mean, lo, hi = bootstrap_mean_ci(diff)
+        out[k + "_own_goal_diff_per_match"] = {"mean": round(mean, 3), "ci95": [round(lo, 3), round(hi, 3)]}
+        out[k + "_behaviour"] = {"candidate": behaviour(reps[k], "A"), "opponent": behaviour(reps[k], "B")}
+    out["criteria"] = {
+        "improved_vs_overnight_start": out["vs_S2L3600"]["ci95"][0] > 0.5,
+        "improved_vs_best_verified": out["vs_best_S1L2263"]["ci95"][0] > 0.5,
+        "regression_checks_pass": out["diag_vs_R0"]["score"] >= 0.45 and out["diag_vs_M2REF"]["score"] >= 0.45,
+    }
+    out["promote"] = out["criteria"]["improved_vs_best_verified"] and out["criteria"]["regression_checks_pass"]
+    (OUT / f"night-final-iter{iteration}.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    print(json.dumps(out, indent=1))
+    return out
+
+
 if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
+    if what == "diag":
+        diag(int(sys.argv[2]), int(sys.argv[3]) if len(sys.argv) > 3 else 0)
+        sys.exit(0)
+    if what == "overnight":
+        overnight(int(sys.argv[2]))
+        sys.exit(0)
     if what in ("final", "all"):
         final()
     if what in ("decide", "all"):

@@ -76,3 +76,32 @@ match 0.39 (iter 3,600) vs 1.01 (START) in the same matches.
 **Interim All-Star series (iteration 3,600, same fixed setup, user-requested; diagnostic only):** 3-1-0, goals 21-5
 (7-0, 6-3, 6-0, 2-2 stopped at regulation); BotCore own goals 0; BotCore shots 38 vs All-Star 7 (pre: 25 vs 17).
 Details: `runs/allstar/interim-iter3600/summary.md`.
+
+## Overnight continuation (authorised 2026-11-17 ~01:29; rules written before it started)
+
+* **Start:** `runs/s1-long2` iteration 3,600 (265,420,800 total steps), the latest valid checkpoint; frozen byte-identical
+  read-only copies `runs/reference/S2L-iter3600-checkpoint` and `runs/reference/S2L-iter3600` (weights `7b35dd6a3e77`).
+  Untouched: best_verified (`runs/s1-long` iteration 2,263, `8d55b78c86c7`) and the deployed `bot/model` (same weights).
+* **Config** `configs/experiments/long2-overnight.toml`: identical learning setup; only `total_iterations` (9,900 =
+  3,600 + 6,300) and `keep_last` (200, so nothing from this run is pruned) differ.
+* **Budget:** at most 7 h from the instruction (hard end 08:29). 6,300 iterations (464.5M added steps) ~6.5 h at
+  3.7 s/iteration, so it should end by itself. Watchdog: if still running at 08:20 a STOP file is created, which
+  checkpoints the current iteration and exits cleanly (no force-kill). NaNs / policy faults / checkpoint errors raise
+  and stop training; they are reported, nothing is restarted.
+* **~2-hourly diagnostics** (checkpoints ~5,550, ~7,500, ~9,450): 40 pairs vs S2L-iter3600 on seeds 0-39 (baseline:
+  iteration 3,600 vs itself 0.537 [0.463, 0.613]); plus training entropy and log-prob guard from metrics.jsonl.
+  **Deterioration flag:** score < 0.40, or own goals/match more than 0.5 above the start's in the same matches, or
+  touches/min below 70% of the start's, or policy entropy < 2.0 (collapse / repetitive play). Lower airtime or boost
+  alone is not a flag. A flag is confirmed with 40 more pairs on seeds 7,000+; if confirmed, training is stopped with
+  the STOP file.
+* **Final (fresh seeds):** final vs S2L-iter3600, 150 pairs, offsets 4,000-4,149; final vs best_verified S1L-iter2263,
+  150 pairs, offsets 5,000-5,149; regression checks vs R0 and M2REF (40 pairs, seeds 0-39); final vs S2L-iter3600 on
+  seeds 0-39 for comparability with the diagnostics.
+* **Earlier candidate:** if an intermediate checkpoint's diagnostic score beats the final's (seeds 0-39) by > 0.10, it
+  is played against FINAL on seeds 6,000-6,149; if it wins (lower bound > 0.5) it replaces FINAL as the candidate and
+  is evaluated against best_verified on independent seeds 8,000-8,149.
+* **Promotion:** the candidate becomes best_verified only with 95% CI lower bound > 0.5 vs best_verified (150 fresh
+  pairs) and >= 0.45 in both regression checks. Otherwise S1L-iter2263 stays best_verified and deployed.
+* **If promoted:** the fixed All-Star series is repeated with it (`--label night-<iter>`); it is installed in
+  `bot/model` (old model kept in `bot/model.previous` and `runs/reference`) only if the live runner shows no faults.
+* Afterwards every training/test process is stopped; Windows is left running.
