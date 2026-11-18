@@ -14,6 +14,9 @@ are in RocketSim against random or earlier versions of the same lineage unless s
   after 0.5 s, 22% followed by a touch within 1 s, only 7.5% back on wheels within 1 s.
 * Held-out human match: -log P(class) 8.88 -> 3.43; P(class) at human dodge presses 0.000 -> 0.021.
 * All-Star diagnostic (4 offline matches): 4-0-0 (38-1), runner clean. Not yet played against a human.
+* External benchmark vs Necto V1 (docs/BENCH_NECTO.md, `scripts/necto_bench.py`, 20 pairs, RocketSim): both 11900
+  and 12900 lose 0-0-40; goal diff/match -9.3 vs -7.8, paired +1.5 [+0.3, +2.8] for 12900. Necto scores with dodge
+  shots while our car is out of position and low on boost. Kept as a benchmark, not a training opponent.
 
 ## Previous state: VTB comparison (docs/EXPERIMENT_VTB.md)
 

@@ -22,3 +22,6 @@ rlviser
 .vscode/
 .idea/
 Thumbs.db
+
+# Third-party bots/packages downloaded for offline evaluation (own licences; not redistributed)
+external/
