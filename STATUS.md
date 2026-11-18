@@ -1,11 +1,23 @@
 # Project status
 
-Last updated 2026-11-17 (VTB comparison). Nothing here implies a rank or Rocket League skill level; all match results
+Last updated 2026-11-18 (imitation pilot). Nothing here implies a rank or Rocket League skill level; all match results
 are in RocketSim against random or earlier versions of the same lineage unless stated otherwise.
 
-## Current state (VTB comparison, docs/EXPERIMENT_VTB.md)
+## Current state (imitation pilot, docs/EXPERIMENT_IL_PILOT.md)
 
-* **best_verified = `runs/s3-ctrl` iteration 11,900** (weights `ae97d768444d`, 877.4M total steps; frozen copy
+* **best_verified = `runs/s4-il` iteration 12,900** (weights `b1dbba3f4585`; frozen copy `runs/reference/S4I-iter12900`),
+  installed in `bot/model`; S3C-iter11900 in `bot/model.previous`. It is 11900 + 1,000 iterations with an imitation
+  term (coef 0.02) on two recorded human matches; rewards, architecture and action table unchanged.
+* vs S3C-11900 0.740 [0.680, 0.800]; vs the unchanged control continuation 0.795 [0.735, 0.850]; the control itself
+  scored 0.412 [0.347, 0.477] vs 11900 (regressed). 100 fresh pairs each, one seed per arm.
+* Complete dodges in simulated play: 2.47 per car-minute [2.21, 2.73] (control 0.005, 11900 0.025). Mean +293 uu/s
+  after 0.5 s, 22% followed by a touch within 1 s, only 7.5% back on wheels within 1 s.
+* Held-out human match: -log P(class) 8.88 -> 3.43; P(class) at human dodge presses 0.000 -> 0.021.
+* All-Star diagnostic (4 offline matches): 4-0-0 (38-1), runner clean. Not yet played against a human.
+
+## Previous state: VTB comparison (docs/EXPERIMENT_VTB.md)
+
+* best_verified (then) = `runs/s3-ctrl` iteration 11,900 (weights `ae97d768444d`, 877.4M total steps; frozen copy
   `runs/reference/S3C-iter11900`), installed in `bot/model`; S2N-iter9900 in `bot/model.previous`.
   It is the unchanged-config control branch: vs S2N-iter9900 0.665 [0.613, 0.717] (150 fresh pairs).
 * Removing `velocity_to_ball` (EXP branch, same start and budget) was **worse**: EXP vs CTRL 0.407 [0.353, 0.458];
