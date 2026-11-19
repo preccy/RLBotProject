@@ -104,6 +104,11 @@ class ImitationConfig:
     dataset: str = ""  # npz written by scripts/il_feasibility/build_demos.py
     matches: tuple = ()  # match indices in the npz used for training (held-out matches are simply not listed)
     batch_size: int = 2048
+    # Optional second demonstration source (docs/EXPERIMENT_HL_IMITATION.md): mix_batch_size of each batch_size-sample
+    # batch are drawn from mix_dataset (matches mix_matches; empty = all), the rest from dataset. "" = off.
+    mix_dataset: str = ""
+    mix_matches: tuple = ()
+    mix_batch_size: int = 0
 
 
 @dataclass
@@ -280,6 +285,9 @@ def validate(cfg: Config) -> None:
         need(bool(cfg.imitation.dataset), "[imitation] dataset is required when coef > 0")
         need(len(cfg.imitation.matches) > 0, "[imitation] matches must list the training match indices")
         need(cfg.imitation.batch_size >= 1, "[imitation] batch_size must be >= 1")
+        if cfg.imitation.mix_dataset:
+            need(1 <= cfg.imitation.mix_batch_size < cfg.imitation.batch_size,
+                 "[imitation] mix_batch_size must be in [1, batch_size)")
 
     learner_agents = learner_agent_slots(cfg)
     steps_per_iteration = learner_agents * c.rollout_steps

@@ -300,6 +300,7 @@ def extract_frames(fr, scheme: str = "dither", seed: int = 0, with_repro: bool =
     pj = T[d["prev"], 5] > 0.5 if len(d["prev"]) else np.zeros(0, bool)
     onset = jb & ~pj
     n_dodge = n_kept = 0
+    by_car = [[0, 0] for _ in A["ids"]]
     for c in range(len(A["ids"])):
         idx = np.where(d["car"] == c)[0]
         ticks = d["tick"][idx]
@@ -313,9 +314,11 @@ def extract_frames(fr, scheme: str = "dither", seed: int = 0, with_repro: bool =
             n_dodge += 1
             kept = bool(onset[idx[max(b - 1, 0):b + 2]].any())
             n_kept += kept
+            by_car[c][0] += 1
+            by_car[c][1] += kept
             if not kept:
                 d["dodge_lost"][idx[max(b - 1, 0):b + 2]] = True
-    stats.update(dodges_in_grid=n_dodge, dodges_pattern_kept=n_kept,
+    stats.update(dodges_in_grid=n_dodge, dodges_pattern_kept=n_kept, dodges_in_grid_kept_by_car=by_car,
                  repro_err_median=(np.median(repro_err, axis=0).tolist() if len(repro_err) else None),
                  repro_bad_share=float(np.mean((repro_err[:, 0] > REPRO_POS_UU) | (repro_err[:, 1] > REPRO_ANG_DEG)))
                  if len(repro_err) else None)

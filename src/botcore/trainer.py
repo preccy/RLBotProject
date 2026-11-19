@@ -154,10 +154,16 @@ class Trainer:
             from botcore.deploy.live_report import feature_names
             from botcore.imitation import ImitationTerm, load_demos
 
-            obs, _, masks = load_demos(cfg.imitation.dataset, cfg.imitation.matches,
-                                       feature_names().index("self.on_ground[0]"))
+            og = feature_names().index("self.on_ground[0]")
+            obs, _, masks = load_demos(cfg.imitation.dataset, cfg.imitation.matches, og)
+            mix = None
+            if cfg.imitation.mix_dataset:
+                obs2, _, masks2 = load_demos(cfg.imitation.mix_dataset, cfg.imitation.mix_matches or None, og)
+                mix = (obs2, masks2, cfg.imitation.mix_batch_size)
+                log(f"imitation mix: {cfg.imitation.mix_batch_size} of each batch from {len(obs2)} blocks of "
+                    f"{cfg.imitation.mix_dataset}")
             self.imitation = ImitationTerm(self.policy.actor, obs, masks, cfg.imitation.coef, cfg.imitation.batch_size,
-                                           cfg.ppo.max_grad_norm, self.device, seed=cfg.run.seed + 31)
+                                           cfg.ppo.max_grad_norm, self.device, seed=cfg.run.seed + 31, mix=mix)
             self.imitation.wrap(self.learner.optimizers[0])  # [actor, critic], see _optimizers_factory
             log(f"imitation term: coef {cfg.imitation.coef}, {len(obs)} demonstration blocks from matches "
                 f"{list(cfg.imitation.matches)} of {cfg.imitation.dataset}, batch {self.imitation.batch_size}")

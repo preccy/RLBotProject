@@ -41,7 +41,13 @@ are in RocketSim against random or earlier versions of the same lineage unless s
     * R1 rotation equivalence passed: bit-identical across 3 matches.
     * R2 failed on label timing for the replay recorder. The recorder's controls lead its car's motion by 4-6
       frames (130-200 ms), against 1-2 for the opponent, in all 7 matches checked.
-  * Still stopped; CTRL-13300 is still deployed.
+  * Retained-side rerun (non-recorder only; the recorder is identified from the replay title, 84/85 training and
+    15/15 held-out identified): on matches 7-9, all magnitude, lag (2 frames vs the recorder's 4-6), dodge and boost
+    checks passed. Match 8's retained player failed the pre-registered timing comparison: labels one block earlier
+    had a lower median heading error (2.11 vs 2.44 deg; 2.53 vs 3.14 at steering changes). Paired per segment there
+    was no systematic preference (descriptive).
+  * Still stopped before training; CTRL-13300 is still deployed. The imitation mix option (`[imitation]
+    mix_dataset`) is written and smoke-tested only.
 
 ## Previous state (imitation pilot, docs/EXPERIMENT_IL_PILOT.md)
 

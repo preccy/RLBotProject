@@ -34,9 +34,10 @@ def equivalence_mask(T: np.ndarray, label: int, on_ground: bool) -> np.ndarray:
 
 def load_demos(path: str, matches, on_ground_index: int):
     """Usable demonstration blocks from a build_demos.py npz: obs, labels and equivalence masks.
-    Blocks flagged press_inflight or dodge_lost are dropped (approx_dir dodges are kept)."""
+    Blocks flagged press_inflight or dodge_lost are dropped (approx_dir dodges are kept). matches=None: all."""
     d = np.load(path)
-    sel = np.isin(d["match"], np.asarray(list(matches))) & ~d["press_inflight"] & ~d["dodge_lost"]
+    in_matches = np.ones(len(d["match"]), bool) if matches is None else np.isin(d["match"], np.asarray(list(matches)))
+    sel = in_matches & ~d["press_inflight"] & ~d["dodge_lost"]
     obs = d["obs"][sel].astype(np.float32)
     labels = d["label"][sel].astype(np.int64)
     T = get_action_table().controls
@@ -54,13 +55,20 @@ def class_nll(logits: torch.Tensor, masks: torch.Tensor) -> torch.Tensor:
 
 class ImitationTerm:
     def __init__(self, actor: torch.nn.Module, obs: np.ndarray, masks: np.ndarray, coef: float, batch_size: int,
-                 max_grad_norm: Optional[float], device: torch.device, seed: int):
+                 max_grad_norm: Optional[float], device: torch.device, seed: int,
+                 mix: Optional[tuple] = None):
+        """mix = (obs2, masks2, n2): n2 of every batch come from the second source, batch_size - n2 from the first."""
         if coef <= 0:
             raise ValueError("imitation coef must be > 0")
         self.actor = actor
         self.obs = torch.as_tensor(obs, device=device)
         self.masks = torch.as_tensor(masks, device=device)
         self.coef = float(coef)
+        self.mix = None
+        if mix is not None:
+            obs2, masks2, n2 = mix
+            self.mix = (torch.as_tensor(obs2, device=device), torch.as_tensor(masks2, device=device), int(n2))
+            batch_size = int(batch_size) - int(n2)
         self.batch_size = int(min(batch_size, len(obs)))
         self.max_grad_norm = max_grad_norm
         self.rng = np.random.default_rng(seed)
@@ -76,7 +84,15 @@ class ImitationTerm:
             for p in params:
                 p.grad = None
             idx = torch.as_tensor(self.rng.choice(len(self.obs), self.batch_size, replace=False), device=self.obs.device)
-            nll = class_nll(self.actor(self.obs[idx]), self.masks[idx]).mean()
+            extra = {}
+            if self.mix is None:
+                nll = class_nll(self.actor(self.obs[idx]), self.masks[idx]).mean()
+            else:
+                obs2, masks2, n2 = self.mix
+                idx2 = torch.as_tensor(self.rng.choice(len(obs2), n2, replace=False), device=obs2.device)
+                per = class_nll(self.actor(torch.cat([self.obs[idx], obs2[idx2]])), torch.cat([self.masks[idx], masks2[idx2]]))
+                nll = per.mean()
+                extra = {"loss_primary": per[:len(idx)].mean().item(), "loss_mix": per[len(idx):].mean().item()}
             (self.coef * nll).backward()
             il_grads = [p.grad.detach() if p.grad is not None else torch.zeros_like(p) for p in params]
             il_norm = torch.norm(torch.stack([g.norm() for g in il_grads]))
@@ -91,7 +107,7 @@ class ImitationTerm:
                 torch.nn.utils.clip_grad_norm_(params, self.max_grad_norm)
             self._stats.append({"loss": nll.item(), "weighted_loss": self.coef * nll.item(),
                                 "ppo_actor_grad_norm": ppo_norm.item(), "il_grad_norm": il_norm.item(),
-                                "combined_grad_norm_before_clip": combined.item(), "cos_ppo_il": cos.item()})
+                                "combined_grad_norm_before_clip": combined.item(), "cos_ppo_il": cos.item(), **extra})
             return original_step(*args, **kwargs)
 
         optimizer.step = step

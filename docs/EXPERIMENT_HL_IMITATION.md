@@ -415,3 +415,69 @@ For the retained side of all identified training and held-out matches, the follo
   * seeds 21,000-21,039 (screen), 21,100-21,199 (confirm), 21,300-21,399 (head-to-head), 21,500-21,539 (Necto),
     21,700+ (behaviour);
   * regression seeds 0-39.
+
+### Retained-side check results (2026-11-19, `scripts/hl_replays/retained_check.py`, `runs/hl-check/retained.json`)
+Recorder identification: 84 of 85 training matches and 15 of 15 held-out matches identified. Training match 99 was
+skipped as ambiguous. There is one retained player per match.
+
+| Match | Retained player | Segments (change / sustained / straight) | Heading, all segments: aligned / earlier / later | Change segments: aligned / earlier / later | Position at changes (aligned / earlier / later) | Steer metric obs / raw | Best lag retained (recorder) | Dodges kept, direction | Pass |
+|---|---|---|---|---|---|---|---|---|---|
+| 7 | orange | 109 (53 / 22 / 34) | 2.21 / 2.45 / 3.13 deg | 2.21 / 2.89 / 4.82 | 24.2 / 25.7 / 26.5 uu | 0.935 / 0.955 | 2 (5) | 45/45, 51/51 within 45 deg | yes |
+| 8 | blue | 56 (24 / 18 / 14) | 2.44 / **2.11** / 2.72 deg | 3.14 / **2.53** / 5.26 | 24.1 / 26.6 / 25.9 uu | 0.940 / 0.959 | 2 (4) | 63/63, 67/67 | **no** |
+| 9 | orange | 191 (85 / 42 / 64) | 1.94 / 1.95 / 2.58 deg | 2.66 / 2.94 / 4.40 | 21.5 / 24.1 / 23.8 uu | 0.929 / 0.948 | 2 (6) | 51/51, 53/53 | yes |
+
+* All three retained players pass the magnitude criteria (median position 21.8-27.8 uu, heading 1.9-2.4 deg), the
+  obs-vs-raw steer metric (gap <= 0.02), N3 (best lag 2 frames, against 4-6 for the recorder in the same match) and
+  N4 (boost bit >= 99.7%).
+* Pooled N2 passes. Change segments (162): aligned 2.65 deg vs earlier 2.88 and later 4.97. Sustained turns (82):
+  23.6 uu, 3.14 deg.
+* **Failure:** match 8, retained player (blue), on N1 timing and N2 change timing. Labels shifted one block
+  **earlier** give a lower median heading error than the aligned labels: 2.11 vs 2.44 deg over all 56 segments and
+  2.53 vs 3.14 over the 24 change segments. The position criterion at changes passes (24.1 uu aligned vs 26.6
+  earlier).
+
+**First failing sequence** (match 8, retained blue player, segment at tick 7062):
+```
+  frame  tick   analog throttle  analog steer   (converter controls, 4 ticks per frame)
+   1281  7054   +1.00            -0.43
+   1282  7058   +1.00            -0.15
+   1283  7062   +1.00            -0.12   <- segment start
+   1284  7066   +1.00            -0.33
+   1285  7070   +1.00            -0.58
+   1286  7074   +1.00            -0.86
+   1287  7078   +1.00            -1.00
+   1288  7082   +1.00            -1.00
+  mapped rows (thr, steer) at t-8, t, t+8, t+16: (+1,+0), (+1,+0), (+1,-1), (+1,-1)
+  16-tick re-simulation raw     : position   48.4 uu, heading  3.90 deg
+  16-tick re-simulation mapped  : position   48.5 uu, heading  4.34 deg
+  16-tick re-simulation earlier : position   57.1 uu, heading  1.56 deg
+  16-tick re-simulation later   : position   48.2 uu, heading  6.54 deg
+```
+* This is a steering onset: the analog steer ramps from -0.12 to -1.00 over four frames. The nearest scheme puts the
+  onset into the block at t+8 (mean -0.72).
+* The car turned sooner than the converter's own raw controls predict (3.90 deg error even with raw controls).
+  Labels one block earlier match the heading best (1.56 deg) but miss position by more (57 vs 48 uu).
+
+**Descriptive follow-up (after the check, no criterion changed).**
+* Paired per segment, the aligned labels do not lose systematically to the earlier shift.
+* Match 8, change segments, aligned vs earlier:
+  * heading: aligned better in 42% of segments, earlier better in 37%, tied in 21%;
+  * median paired difference 0.00 deg, 95% bootstrap interval [-1.57, +0.21];
+  * position: aligned better in 67%.
+* Matches 7 and 9 look the same. The pre-registered criterion compares unpaired medians on a small sample in which
+  about half the segments tie, which makes it sensitive.
+* This does not change the outcome.
+
+**Data counts (computed only for the checked matches; the other 81 training matches were not converted because the
+pilot stopped):**
+
+| Match | Loader-usable blocks | Usable dodge-labelled blocks | Grid dodges kept |
+|---|---|---|---|
+| 7 | 3,082 | 21 | 45/45 |
+| 8 | 3,882 | 40 | 63/63 |
+| 9 | 4,007 | 14 | 51/51 |
+
+**Outcome:** a pre-registered retained-side timing criterion failed, so **the pilot stops before training.**
+CTRL-13300 stays best_verified and deployed, and its references are untouched. Code prepared for the HL arm, not
+used: an optional second demonstration source in the imitation term (`[imitation] mix_dataset`, `mix_matches`,
+`mix_batch_size`). It is smoke-tested only; the existing single-source path is unchanged.
