@@ -492,3 +492,21 @@ used: an optional second demonstration source in the imitation term (`[imitation
 * The existing non-recorder mapping and exclusions are used unchanged.
 * Everything else is as pre-registered: arms, 1,000 iterations each from CTRL-13300, checkpoint screening, fresh-seed
   evaluations and promotion rules. The 15 held-out matches stay reserved for the held-out imitation fit.
+
+### Retained demonstration sets (`scripts/hl_replays/build_hl_demos.py`, `runs/demos/hl1-counts.json`)
+| Set | Matches (players) | Retained blue / orange | Blocks after exclusions | Loader-usable blocks | Usable dodge-labelled blocks | Grid dodges (fresh jump label kept) |
+|---|---|---|---|---|---|---|
+| Training `hl1.npz` | 84 (84) | 47 / 37 | 277,513 | **272,025** | **1,809** | 3,734 (3,734) |
+| Held-out `hl1-holdout.npz` | 15 (15) | 8 / 7 | 49,272 | 48,300 | 318 | 690 (690) |
+
+* Training match 99 was skipped as ambiguous.
+* Training matches 11 and 60 contribute 0 blocks: their replay frames are not 4 ticks apart, so the existing spacing
+  exclusion removes them.
+* Four training matches (19, 34, 42, 64) and two held-out matches give fewer than 1,000 blocks. The median is 3,723
+  per match.
+* "Usable dodge-labelled blocks" counts blocks whose label is a dodge press and that the loader keeps. About half
+  of all dodges have their press in the second half of an 8-tick block. The existing rule labels those in the next
+  block and flags them `press_inflight`, which the loader drops, exactly as for the KBM demos. "Grid dodges" counts
+  every has_flipped dodge inside three contiguous usable blocks.
+* For scale: the KBM demos used by both arms (`s1.npz` matches 0-1) contain 8,410 usable blocks. In the HL
+  arm, each batch takes half its samples from each source regardless of size.
