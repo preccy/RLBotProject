@@ -328,3 +328,90 @@ colour.
 **Outcome:** a material, systematic label-timing error affects half of the demonstration data. Per the
 pre-registration, **the pilot stops here: no arm is trained.** CTRL-13300 stays best_verified and deployed, and its
 references are untouched.
+
+---
+
+## Retained-side pilot (option 1; written and committed before its checks are run)
+Requested after the R2 failure. Everything above stays as recorded. Only the non-recorder's side of each replay is
+used, for training and for the held-out evaluation. Everything not changed here stays as pre-registered above:
+* the converter (`hlconv.py`, nearest scheme, causal inputs);
+* the kickoff and other exclusions;
+* the arms, budget, candidate selection, evaluation seeds and decision rules.
+
+### Recorder identification (`scripts/hl_replays/recorder.py`)
+* The recorder is the player named in the replay title, `<date> <name> Ranked Duel [Win|Loss]`.
+* The title is a file name, so characters that are not file-name safe are stripped from `<name>`. Names are therefore
+  compared using only their ASCII letters and digits, case-insensitively.
+* A match is **ambiguous and skipped entirely** unless all of the following hold:
+  * the title parses;
+  * the title's name key is non-empty and equals the key of exactly one player;
+  * the two players' keys differ;
+  * a result suffix (W/L), if present, agrees with the final score.
+* Applied to the selection: 84 of 85 training matches and 15 of 15 held-out matches are identified. Training match
+  99 is skipped: its title names someone who matches neither player.
+* On training matches 0-6 the rule names the same player as the timing diagnosis above (the player with the 4-6
+  frame lead) in 7 of 7.
+* The retained player is the other player.
+
+### Retained-side checks (all must pass, or stop and show the first failing sequence)
+**Matches:** training-split matches 7, 8 and 9, the next unchecked ones in selection order. Their retained players
+are orange, blue and orange respectively. The 15 held-out matches stay untouched until the final evaluation.
+
+**N1 R2 fidelity and timing, existing criteria, per retained player.** The aligned grounded segments, the four
+re-simulations (raw, mapped, one block earlier, one block later), the opponent on raw controls, and the comparison
+with the replay's true state 16 ticks later are all exactly as in R2. Pass requires:
+* more than 20 segments;
+* mapped labels: median position error <= 40 uu and median heading error <= 5 deg;
+* the median heading error with aligned labels is lower than with labels shifted one block earlier and one block
+  later;
+* the per-player steer metric from our observations is within 0.15 of the raw-physics value.
+
+**N2 steering changes vs sustained turns.** Each N1 segment is classified by the steer component of the four mapped
+labels it uses, at ticks t-8, t, t+8 and t+16:
+* **change:** the four steer values are not all equal. A shifted label sequence differs from the aligned one only
+  in these segments.
+* **sustained turn:** all four are equal and non-zero. Shifting changes little here, so these segments can make a
+  shifted label look accurate.
+* **straight:** all four are zero.
+
+Pass requires:
+* **Change segments, per retained player:** median heading error with aligned labels lower than with labels one
+  block earlier and with labels one block later. The same must hold for median position error. If a player has
+  fewer than 20 change segments, the check uses the change segments pooled over the three retained players, and the
+  per-player values are reported.
+* **Sustained turns**, pooled over the three players: median position error <= 40 uu and heading error <= 5 deg.
+  The shifted errors are reported.
+
+**N3 control lead.** This is the quantity that failed.
+* Method: the correlation between the converter's analog steer L frames earlier (L = 0..8, 4 ticks each) and the
+  car's yaw rate (angular velocity on the car's up axis). It is computed at the retained car's true-update frames,
+  grounded, with forward speed > 300 uu/s, with all frames from k-L to k in the same gameplay period at 4-tick
+  spacing.
+* Pass: the best L is <= 3 frames for every retained player.
+* The recorder's best L is reported alongside. The diagnosis above found 4-6 for recorders and 1-2 for opponents.
+
+**N4 jump/dodge timing and boost, the existing C3 criteria on the retained side:**
+* ordinary dodges: mapped direction within 45 deg of the replay's flip direction in >= 90%;
+* a fresh jump label within one block of each dodge (judged inside three contiguous usable blocks) in >= 90%;
+* boost bit equal to the block majority in >= 95%.
+
+**On failure:**
+* stop before training;
+* show the first failing sequence: for the first failing player, a segment of the failing type with its tick, its
+  analog steer per frame, the mapped labels and the re-simulation errors;
+* CTRL-13300 stays deployed.
+
+### Data counts (reported before training)
+For the retained side of all identified training and held-out matches, the following are reported:
+* matches and players;
+* loader-usable blocks (after `press_inflight`/`dodge_lost`);
+* usable dodges: dodge-labelled blocks kept by the loader, and has_flipped dodges judged/kept in the grid.
+
+### Changes to the arms (the only ones)
+* HL demonstrations: `runs/demos/hl1.npz`, retained side of the 84 identified training matches. The HL arm draws
+  1,024 of each 2,048-sample batch from them and 1,024 from the KBM demos, as planned.
+* Held-out imitation fit: retained side of the 15 held-out matches (`runs/demos/hl1-holdout.npz`).
+* All other arm, screening, confirmation, evaluation and promotion rules are as pre-registered above, including:
+  * seeds 21,000-21,039 (screen), 21,100-21,199 (confirm), 21,300-21,399 (head-to-head), 21,500-21,539 (Necto),
+    21,700+ (behaviour);
+  * regression seeds 0-39.
