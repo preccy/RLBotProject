@@ -31,6 +31,15 @@ are in RocketSim against random or earlier versions of the same lineage unless s
   * 13300's attacks most often stall in a low 50/50 near Beast's goal, usually with 13300 on zero boost (it spends
     65-77% of play at 0 boost).
 
+* **High-level replay imitation pilot** (docs/EXPERIMENT_HL_IMITATION.md): **stopped at the initial label checks**,
+  with no training.
+  * 100 full-length ranked duels selected from `Rolv-Arild/hlrlrd-parsed`, 15 held out, no shared players.
+  * Converter: `scripts/hl_replays/` (causal observations, nearest labels).
+  * Passed: C1, C3 (mapping loss 14 uu / 2.4 deg over 0.5 s; dodges 342/342), C4 (94% usable) and C2 causality.
+  * Failed: C2's team-difference threshold (steer-yaw correlation 0.91 vs 0.74). This traces to the two human
+    players, not to colour or staleness.
+  * CTRL-13300 is still deployed.
+
 ## Previous state (imitation pilot, docs/EXPERIMENT_IL_PILOT.md)
 
 * **best_verified = `runs/s4-il` iteration 12,900** (weights `b1dbba3f4585`; frozen copy `runs/reference/S4I-iter12900`),
