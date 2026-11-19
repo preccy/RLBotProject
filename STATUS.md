@@ -46,8 +46,16 @@ are in RocketSim against random or earlier versions of the same lineage unless s
     checks passed. Match 8's retained player failed the pre-registered timing comparison: labels one block earlier
     had a lower median heading error (2.11 vs 2.44 deg; 2.53 vs 3.14 at steering changes). Paired per segment there
     was no systematic preference (descriptive).
-  * Still stopped before training; CTRL-13300 is still deployed. The imitation mix option (`[imitation]
-    mix_dataset`) is written and smoke-tested only.
+  * The user authorised proceeding despite the match-8 failure. HL labels are approximate at gradual turn starts.
+  * Demo set: 84 training replays (retained side), 272,025 usable blocks, 1,809 usable dodge blocks.
+  * **Pilot result** (1,000 iterations per arm from 13300, one seed):
+    * HL candidate (iter 13,550) vs frozen 13300: 0.320 [0.265, 0.380];
+    * CTRL (iter 14,300) vs 13300: 0.145 (the continuation collapsed);
+    * HL vs CTRL: 0.810;
+    * vs Necto, paired margin HL - 13300: -1.19 [-2.20, -0.20].
+  * **Nothing promoted; 13300 stays deployed.**
+  * HL predicts held-out human controls far better (NLL 2.59 vs 5.61).
+  * First touches under pressure look like 13300's. CTRL dodges into 30-40% of them.
 
 ## Previous state (imitation pilot, docs/EXPERIMENT_IL_PILOT.md)
 

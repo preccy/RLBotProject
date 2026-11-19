@@ -510,3 +510,101 @@ used: an optional second demonstration source in the imitation term (`[imitation
   every has_flipped dodge inside three contiguous usable blocks.
 * For scale: the KBM demos used by both arms (`s1.npz` matches 0-1) contain 8,410 usable blocks. In the HL
   arm, each batch takes half its samples from each source regardless of size.
+
+## Pilot results (2026-11-19; `scripts/hl_pilot_eval.py`, `runs/hl-eval/`)
+Both arms trained 1,000 iterations from the CTRL-13300 checkpoint: 73.7M learner transitions each, one seed, run one
+after the other. Over training, the HL arm's imitation loss on the replay half fell from 5.39 to 2.23. On the KBM
+half it went 0.70 -> 0.82, against 0.70 -> 0.48 in CTRL. All our policies sample their actions.
+
+### Match results (full matches first)
+**Screening vs frozen 13300** (40 pairs, offsets 21,000-21,039; score = wins + half draws):
+
+| Iteration | CTRL | HL |
+|---|---|---|
+| 13,550 | 0.050 | **0.538** |
+| 13,800 | 0.063 | 0.300 |
+| 14,050 | 0.113 | 0.338 |
+| 14,300 | **0.138** | 0.450 |
+
+The candidates by the fixed rule are CTRL 14,300 and HL 13,550.
+
+| Comparison (fresh seeds) | Result | Score [95% CI] | Goal diff per match |
+|---|---|---|---|
+| HL vs frozen 13300 (100 pairs, 21,100+) | 64-0-136 | **0.320 [0.265, 0.380]** | -0.98 [-1.36, -0.60] |
+| CTRL vs frozen 13300 (same seeds) | 29-0-171 | 0.145 [0.100, 0.195] | -3.09 [-3.46, -2.71] |
+| HL vs CTRL head-to-head (100 pairs, 21,300+) | 162-0-38 | **0.810 [0.755, 0.865]** | +2.35 [+1.95, +2.74] |
+| HL vs R0 / M2REF (40 pairs) | 80-0-0 / 80-0-0 | 1.000 / 1.000 | |
+| CTRL vs R0 / M2REF | 80-0-0 / 80-0-0 | 1.000 / 1.000 | |
+
+**Against Necto V1** (argmax; 40 colour-swapped pairs, offsets 21,500-21,539; every policy lost all 80 matches):
+
+| Policy | Goals | Margin per match |
+|---|---|---|
+| 13300 | 178-762 | -7.30 [-7.95, -6.65] |
+| HL | 143-822 | -8.49 [-9.08, -7.90] |
+| CTRL | 133-1,063 | -11.63 [-12.25, -11.00] |
+
+Paired goal-margin differences:
+* HL - 13300: **-1.19 [-2.20, -0.20]** (scored -0.44 [-0.85, -0.03], conceded +0.75 [-0.06, +1.55]);
+* CTRL - 13300: -4.33 [-5.36, -3.35];
+* HL - CTRL: +3.14 [+2.31, +3.94].
+
+**Decision (pre-registered rules):**
+* Neither candidate's confirmation CI lower bound is above 0.5 (HL 0.265, CTRL 0.100), so **nothing is promoted**.
+* Both would also carry the Necto regression flag.
+* **CTRL-13300 stays best_verified and deployed** (`bot/model` weights `0e3fd5323e0a`, verified after the
+  evaluation). Its references are untouched.
+
+**Reading:**
+* Adding replay demonstrations was much better than the unchanged continuation: 0.81 head-to-head, and +3.1 goals
+  per match against Necto. But that is mostly because the continuation collapsed. CTRL lost 0.145 to its own
+  starting point.
+* The HL candidate still lost to frozen 13300, and is slightly worse than 13300 against Necto.
+* The screening winner (HL 13,550, 0.54 on 40 pairs) fell to 0.32 on 100 fresh pairs. Picking the best of four noisy
+  screens overstates the winner.
+* One seed per arm.
+
+### Held-out imitation fit (descriptive; -log P(equivalence class), lower is better)
+| Policy | 15 held-out replays (retained side, 48,300 blocks) | KBM m03 (held out) |
+|---|---|---|
+| 13300 | 5.61 (argmax in class 16.6%) | 3.82 |
+| CTRL | 7.09 (13.7%) | 4.89 |
+| HL | **2.59 (31.1%)** | **2.68** |
+
+The HL candidate predicts unseen high-level players' controls far better than 13300. It also predicts the user's
+held-out KBM match better, even though CTRL trained twice as much on KBM data. CTRL got worse on both.
+
+### First touches under pressure (descriptive; `scripts/first_touch.py`, `runs/hl-eval/first-touch/`)
+* Setup: each subject plays frozen 13300 in 40 five-minute matches (20 colour-swapped pairs, offsets 21,700-21,719).
+* Events: subject first touches in open play with the opponent within 2,500 uu. The opponent "closes" at >= 500 uu/s
+  towards the ball over the previous 0.5 s, "backs off" at <= 0, and "holds" in between.
+* Outcome columns: the next touch within 3 s (kept or lost), goals for within 5 s, goals against within 10 s.
+
+| Subject | Defender | Events per match | Kept | Lost | Goal for 5 s | Goal against 10 s | Dodge touches | Airborne touches | Ball towards goal after (median) |
+|---|---|---|---|---|---|---|---|---|---|
+| 13300 | closes | 25.2 | 45.5% | 24.3% | 7.3% | 7.8% | 9.9% | 33% | 231 uu/s |
+| HL | closes | 24.0 | 44.5% | 25.1% | 7.4% | 7.7% | 14.5% | 35% | 312 uu/s |
+| CTRL | closes | 24.5 | 34.8% | 27.3% | 7.8% | 11.9% | 39.6% | 59% | 406 uu/s |
+| 13300 | backs off | 5.0 | 45.8% | 37.3% | 12.9% | 6.5% | 8.0% | 39% | 618 uu/s |
+| HL | backs off | 4.4 | 50.0% | 32.2% | 11.5% | 9.8% | 9.2% | 36% | 712 uu/s |
+| CTRL | backs off | 3.7 | 35.6% | 40.3% | 5.4% | 9.4% | 30.2% | 72% | 606 uu/s |
+
+* **CTRL's collapse is visible on the pitch.** It dodges into 30-40% of its pressured first touches, against
+  8-10% for 13300. 59-72% of those touches are airborne. It keeps the ball far less often (35% vs 46%) and concedes
+  more after closed-down touches. Its touch rate in the confirmation matches fell from 34 to 19 per minute.
+* **The HL candidate's first touches look much like 13300's.**
+  * When closed down, it keeps the ball as often (44.5% vs 45.5%), dodges a little more (14.5% vs 9.9%) and pushes
+    the ball slightly more towards goal (median 312 vs 231 uu/s).
+  * When the defender backs off, it keeps the ball a little more often (50% vs 46%) and loses it less (32% vs 37%),
+    but concedes more within 10 s (9.8% vs 6.5%, 17 vs 13 events).
+  * None of these differences is large, and none was tested.
+* All three subjects spend about 70% of these touches at zero boost.
+* Clips: `runs/hl-eval/first-touch/clips/*.html`, selected by a fixed rule (the first "closes" and first "backs off"
+  event in each match of the first two seed pairs).
+
+**Conclusion of the pilot:**
+* On this budget and seed, the high-level replay demonstrations did not improve match play over 13300, either in
+  self-play or against Necto.
+* They clearly prevented the collapse that the unchanged continuation suffered, and they transferred to unseen
+  human players' controls.
+* No further runs, as pre-registered.
