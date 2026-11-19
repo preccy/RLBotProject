@@ -481,3 +481,14 @@ pilot stopped):**
 CTRL-13300 stays best_verified and deployed, and its references are untouched. Code prepared for the HL arm, not
 used: an optional second demonstration source in the imitation term (`[imitation] mix_dataset`, `mix_matches`,
 `mix_batch_size`). It is smoke-tested only; the existing single-source path is unchanged.
+
+### User authorisation to proceed (2026-11-19, recorded before conversion of the remaining matches and before training)
+* The pre-registered retained-side timing check **failed** on match 8: labels one block earlier gave a lower median
+  heading error for the retained player.
+* The user accepted this steering-onset uncertainty for this bounded pilot and authorised proceeding on that basis.
+  No additional timing gate and no global label shift are applied.
+* **The HL labels are approximate at gradual turn starts.** Nearest rounding of block-mean analog steer can place a
+  ramped turn onset up to one block (8 ticks) late.
+* The existing non-recorder mapping and exclusions are used unchanged.
+* Everything else is as pre-registered: arms, 1,000 iterations each from CTRL-13300, checkpoint screening, fresh-seed
+  evaluations and promotion rules. The 15 held-out matches stay reserved for the held-out imitation fit.
