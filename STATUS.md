@@ -36,9 +36,12 @@ are in RocketSim against random or earlier versions of the same lineage unless s
   * 100 full-length ranked duels selected from `Rolv-Arild/hlrlrd-parsed`, 15 held out, no shared players.
   * Converter: `scripts/hl_replays/` (causal observations, nearest labels).
   * Passed: C1, C3 (mapping loss 14 uu / 2.4 deg over 0.5 s; dodges 342/342), C4 (94% usable) and C2 causality.
-  * Failed: C2's team-difference threshold (steer-yaw correlation 0.91 vs 0.74). This traces to the two human
-    players, not to colour or staleness.
-  * CTRL-13300 is still deployed.
+  * Failed: C2's team-difference threshold (steer-yaw correlation 0.91 vs 0.74).
+  * Replacement checks:
+    * R1 rotation equivalence passed: bit-identical across 3 matches.
+    * R2 failed on label timing for the replay recorder. The recorder's controls lead its car's motion by 4-6
+      frames (130-200 ms), against 1-2 for the opponent, in all 7 matches checked.
+  * Still stopped; CTRL-13300 is still deployed.
 
 ## Previous state (imitation pilot, docs/EXPERIMENT_IL_PILOT.md)
 

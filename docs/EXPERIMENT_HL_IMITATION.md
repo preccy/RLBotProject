@@ -278,3 +278,53 @@ Raw-control errors are reported as the converter's own floor.
 **If R1 and R2 both pass,** the pilot proceeds exactly as planned above: label scheme nearest (from C3), 1,000
 iterations per arm, the predeclared screening and confirmation, fresh-seed evaluations and the existing promotion
 rules. If either fails, the pilot stops and the first divergence is reported.
+
+### Replacement check results (2026-11-19, `scripts/hl_replays/rotation_check.py`, `runs/hl-check/replacement.json`)
+**Original C2 reproduced exactly:** blue r = 0.9099 (n 6,128), orange r = 0.7362 (n 6,166).
+
+**R1 rotation equivalence: PASS** on training-split matches 4, 5 and 6.
+* The original and rotated rebuilds are identical for every block: 4,323, 7,533 and 8,278 blocks respectively.
+  * The usable-block sets, label and prev rows, the four flags and the equivalence masks agree exactly.
+  * The maximum observation difference is 0.0, bit-identical.
+  * There were no borderline cases.
+* Per-player steering metrics are identical: 0.9313 / 0.7412, 0.7006 / 0.9117, 0.9396 / 0.6385.
+* The converter treats the two perspectives identically.
+
+**R2 per-player steering fidelity: FAIL**, on the timing criterion for one player in every match.
+
+| Match | Player | Segments | Heading error: aligned | One block earlier | One block later | Position (aligned) | Steer metric obs / raw | Pass |
+|---|---|---|---|---|---|---|---|---|
+| 4 | blue | 44 | 3.46 deg | 4.28 | 3.53 | 21.0 uu | 0.931 / 0.954 | yes |
+| 4 | orange | 49 | 2.41 deg | 3.23 | **2.24** | 24.5 uu | 0.741 / 0.837 | **no** |
+| 5 | orange | 136 | 2.91 deg | 3.65 | **2.41** | 23.4 uu | 0.701 / 0.807 | **no** |
+| 5 | blue | 139 | 2.55 deg | 2.88 | 2.88 | 24.4 uu | 0.912 / 0.938 | yes |
+| 6 | blue | 175 | 2.56 deg | 2.78 | 3.12 | 23.9 uu | 0.940 / 0.963 | yes |
+| 6 | orange | 155 | 4.33 deg | 4.72 | **3.87** | 29.5 uu | 0.639 / 0.772 | **no** |
+
+**First divergence:** match 4 (selection index 4), the orange player. Labels shifted one block later fit the
+replay's true motion better than the aligned labels: median heading error 2.24 vs 2.41 deg. Position and heading
+magnitudes, and the obs-vs-raw gap (at most 0.133), passed for every player.
+
+**Cause (diagnosis after the check, no criterion changed).** The correlation between steer and the car's yaw rate
+was computed at true-update frames, grounded, above 300 uu/s, with steer taken L frames (4 ticks each) earlier.
+The lag with the highest correlation was:
+
+| Match | Recorder (named in the replay title) | Recorder's best lag | Opponent's best lag |
+|---|---|---|---|
+| 0 | orange | 4 frames | 2 |
+| 1 | orange | 4 | 2 |
+| 2 | **blue** | 5 | 1 |
+| 3 | orange | 6 | 2 |
+| 4 | orange | 5 | 2 |
+| 5 | orange | 4 | 2 |
+| 6 | orange | 6 | 2 |
+
+In every match, the player who recorded the replay has controls leading their car's motion by 4-6 frames
+(130-200 ms, varying between matches). The opponent's lead is 1-2 frames, consistent with the label timing. The
+only blue recorder (match 2) is the only match where blue was the low side in C2. The asymmetry therefore belongs to
+the replay data (the recorder's own inputs against the server's version of their car), not to the converter or the
+colour.
+
+**Outcome:** a material, systematic label-timing error affects half of the demonstration data. Per the
+pre-registration, **the pilot stops here: no arm is trained.** CTRL-13300 stays best_verified and deployed, and its
+references are untouched.

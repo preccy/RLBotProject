@@ -222,6 +222,7 @@ def repro_ok(fr, A, engine):
     """bad[i, c] = True when frame i's controls for car c are not verified to reproduce the replay."""
     n, nc = len(fr), len(A["ids"])
     good = np.zeros((n, nc), dtype=bool)
+    A["repro_err"] = np.full((n, nc, 2), np.nan)
     err = []
     for c in range(nc):
         z = np.where(A["ua"][:, c] == 0)[0]
@@ -237,13 +238,17 @@ def repro_ok(fr, A, engine):
             dang = float(np.degrees(np.arccos(cosang)))
             err.append((dp, dang))
             good[j:k, c] = dp <= REPRO_POS_UU and dang <= REPRO_ANG_DEG
+            A["repro_err"][j:k, c] = (dp, dang)
     return good, np.array(err)
 
 
 def extract(path: Path, scheme: str = "dither", seed: int = 0, with_repro: bool = True, keep_frames=False):
+    return extract_frames(load_frames(path), scheme, seed, with_repro, keep_frames)
+
+
+def extract_frames(fr, scheme: str = "dither", seed: int = 0, with_repro: bool = True, keep_frames=False):
     from rlgym.rocket_league.sim import RocketSimEngine
 
-    fr = load_frames(path)
     A = arrays(fr)
     ok = valid_frames(A)
     if with_repro:
