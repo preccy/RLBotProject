@@ -79,10 +79,13 @@ class LookupActionParser(ActionParser[Any, np.ndarray, np.ndarray, Any, Tuple[st
     what makes "previous action" well defined at episode boundaries in both the simulator and RLBot.
     """
 
-    def __init__(self, action_repeat: int = 8):
+    def __init__(self, action_repeat: int = 8, allow_raw_controls: bool = False):
         super().__init__()
         if action_repeat < 1:
             raise ValueError("action_repeat must be >= 1")
+        # Only for environments with an external frozen opponent (botcore.necto): that car sends 8 raw controls
+        # instead of a table index. Learner cars always send an index, which is validated as before.
+        self.allow_raw_controls = bool(allow_raw_controls)
         self.table = get_action_table()
         self.action_repeat = int(action_repeat)
         self._repeated = np.repeat(self.table.controls[:, None, :], self.action_repeat, axis=1)
@@ -100,6 +103,11 @@ class LookupActionParser(ActionParser[Any, np.ndarray, np.ndarray, Any, Tuple[st
         n = self.table.n_actions
         for agent, action in actions.items():
             flat = np.asarray(action).reshape(-1)
+            if self.allow_raw_controls and flat.shape[0] == 8:
+                controls = flat.astype(np.float32)
+                prev[agent] = controls
+                parsed[agent] = np.repeat(controls[None, :], self.action_repeat, axis=0)
+                continue
             if flat.shape[0] != 1:
                 raise ValueError(f"expected exactly one action index per agent, got shape {np.shape(action)}")
             idx = int(flat[0])

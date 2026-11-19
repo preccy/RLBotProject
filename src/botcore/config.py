@@ -91,6 +91,10 @@ class SelfPlayConfig:
     # current policy. 0 = pure current-policy self-play.
     frozen_opponent_fraction: float = 0.0
     snapshot_every_iterations: int = 50  # how often a checkpoint is also kept as a historical opponent
+    # Fraction of environments in which one side is the frozen external bot Necto V1 (botcore.necto), driven
+    # inside the workers from the game state; its car produces no learner experience. 0 = off. 1v1 only.
+    necto_fraction: float = 0.0
+    necto_dir: str = "external/Necto/rlbot-support/Necto"
 
 
 @dataclass
@@ -265,6 +269,12 @@ def validate(cfg: Config) -> None:
     f = cfg.self_play.frozen_opponent_fraction
     need(0.0 <= f < 1.0, "[self_play] frozen_opponent_fraction must be in [0, 1)")
     need(cfg.self_play.snapshot_every_iterations >= 1, "[self_play] snapshot_every_iterations must be >= 1")
+    nf = cfg.self_play.necto_fraction
+    need(0.0 <= nf < 1.0, "[self_play] necto_fraction must be in [0, 1)")
+    if nf > 0:
+        need(f == 0.0, "[self_play] necto_fraction and frozen_opponent_fraction cannot both be > 0")
+        need(e.team_size == 1, "[self_play] necto_fraction needs team_size = 1")
+        need(e.action_repeat == 8, "[self_play] Necto decides every 8 ticks; action_repeat must be 8")
     need(cfg.imitation.coef >= 0.0, "[imitation] coef must be >= 0")
     if cfg.imitation.coef > 0:
         need(bool(cfg.imitation.dataset), "[imitation] dataset is required when coef > 0")
@@ -294,7 +304,12 @@ def n_frozen_envs(cfg: Config) -> int:
     return int(round(cfg.self_play.frozen_opponent_fraction * cfg.n_envs))
 
 
+def n_necto_envs(cfg: Config) -> int:
+    """Number of environments in which one side is the frozen external bot Necto."""
+    return int(round(cfg.self_play.necto_fraction * cfg.n_envs))
+
+
 def learner_agent_slots(cfg: Config) -> int:
     """Agent slots per rollout step that produce learner experience."""
-    frozen = n_frozen_envs(cfg)
+    frozen = n_frozen_envs(cfg) + n_necto_envs(cfg)
     return (cfg.n_envs - frozen) * cfg.agents_per_env + frozen * cfg.env.team_size

@@ -37,9 +37,9 @@ from rlgym_learn_algos.ppo.trajectory_processor import TRAJECTORY_PROCESSOR_FILE
 
 from botcore import checkpoint as ck
 from botcore.actions import get_action_table
-from botcore.collect import Collector, ClosedTrajectory, role_map, run_rollout
+from botcore.collect import Collector, ClosedTrajectory, external_envs, role_map, run_rollout
 from botcore.config import (EVAL_SEED_BASE, Config, ConfigError, config_from_dict, learner_agent_slots,
-                            n_frozen_envs, validate)
+                            n_frozen_envs, n_necto_envs, validate)
 from botcore.env import EnvSpec
 from botcore.export import PolicyRunner, contract, dependency_versions, load_bundle, source_revision, write_bundle
 from botcore.models import ActorCriticPolicy, arch_from_config, build_actor, build_critic, count_parameters
@@ -70,8 +70,9 @@ def config_diff(old: Dict[str, Any], new: Dict[str, Any]) -> List[str]:
     defaults = Config().to_dict()  # a section missing from an older checkpoint means "all defaults"
     for section in sorted(set(old) | set(new)):
         a, b = old.get(section, defaults.get(section, {})), new.get(section, defaults.get(section, {}))
+        d = defaults.get(section, {}) if isinstance(defaults.get(section), dict) else {}
         for key in sorted(set(a) | set(b)):
-            va, vb = a.get(key), b.get(key)
+            va, vb = a.get(key, d.get(key)), b.get(key, d.get(key))  # a key added later means "its default"
             if isinstance(va, (list, tuple)) and isinstance(vb, (list, tuple)):
                 va, vb = list(va), list(vb)
             if va != vb and (section, key) not in FREELY_CHANGEABLE and (section,) not in FREELY_CHANGEABLE:
@@ -192,6 +193,7 @@ class Trainer:
 
         self.opponents = OpponentRegistry(self.run_dir / "opponents")
         self.n_frozen = n_frozen_envs(cfg)
+        self.external = external_envs(cfg.n_envs, n_necto_envs(cfg))  # env index -> side driven by Necto
         self.opponent_rng = np.random.default_rng(cfg.run.seed + 17)
         if self.opponent_rng_state is not None:
             self.opponent_rng.bit_generator.state = self.opponent_rng_state
@@ -390,11 +392,17 @@ class Trainer:
         metrics_file = open(self.run_dir / "metrics.jsonl", "a", encoding="utf-8")
         try:
             t_spawn = time.perf_counter()
-            self.collector = Collector(spec, cfg.collect.n_workers, cfg.collect.envs_per_worker, seed_base)
+            self.collector = Collector(spec, cfg.collect.n_workers, cfg.collect.envs_per_worker, seed_base,
+                                       external=self.external, necto_dir=cfg.self_play.necto_dir)
             obs = self.collector.reset()
-            roles = role_map(cfg.n_envs, self.collector.agents, self.n_frozen)
+            roles = role_map(cfg.n_envs, self.collector.agents, self.n_frozen, self.external)
+            learner_slots = int((roles == "learner").sum())
+            if learner_slots * cfg.collect.rollout_steps != self.steps_per_iteration:
+                raise RuntimeError(f"role map gives {learner_slots} learner slots; config expects "
+                                   f"{self.steps_per_iteration // cfg.collect.rollout_steps}")
             self.log(f"Started {cfg.collect.n_workers} workers x {cfg.collect.envs_per_worker} envs "
-                     f"({cfg.n_envs} envs, {self.n_frozen} with a frozen opponent) in {time.perf_counter() - t_spawn:.1f}s; "
+                     f"({cfg.n_envs} envs, {self.n_frozen} with a frozen opponent, {len(self.external)} with Necto) "
+                     f"in {time.perf_counter() - t_spawn:.1f}s; "
                      f"{self.steps_per_iteration} learner steps/iteration on {self.device}; "
                      f"actor {count_parameters(self.policy.actor):,} params, critic {count_parameters(self.policy.critic):,}")
             while self.iteration < target and not self._stop_requested:
@@ -498,12 +506,23 @@ class Trainer:
             "episodes": {"finished": n_ep, "goal_fraction": goals / n_ep if n_ep else None,
                          "mean_length_steps": float(np.mean([e["length"] for e in episodes])) if n_ep else None,
                          "by_scenario": per_scenario},
+            "necto": self._necto_episode_stats(episodes) if self.external else None,
             "frozen_opponent": self.frozen_id if self.n_frozen else None,
             "resources": {"cpu_percent_system": psutil.cpu_percent(None),
                           "ram_used_gb_system": psutil.virtual_memory().used / 2 ** 30,
                           "ram_rss_gb_tree": rss / 2 ** 30,
                           "vram_peak_mb": torch.cuda.max_memory_allocated() / 2 ** 20 if torch.cuda.is_available() else None},
         }
+
+    @staticmethod
+    def _necto_episode_stats(episodes: List[dict]) -> Dict[str, Any]:
+        """Episodes in Necto envs: how many, and goals by the learner vs by Necto (diagnostic only)."""
+        ext = [e for e in episodes if e.get("necto_team")]
+        team = {"blue": 0, "orange": 1}
+        necto_goals = sum(1 for e in ext if e["terminated"] and e["scoring_team"] == team[e["necto_team"]])
+        learner_goals = sum(1 for e in ext if e["terminated"] and e["scoring_team"] != team[e["necto_team"]])
+        return {"episodes": len(ext), "episode_share": len(ext) / len(episodes) if episodes else None,
+                "learner_goals": learner_goals, "necto_goals": necto_goals}
 
     @staticmethod
     def _summary_line(m: Dict[str, Any], saved: Optional[Path]) -> str:
@@ -515,6 +534,8 @@ class Trainer:
                 f"goal% {'-' if goal is None else f'{100 * goal:.0f}'}"
                 + (f" | il {m['imitation']['loss']:.2f} grad il/ppo {m['imitation']['il_grad_norm']:.3f}/"
                    f"{m['imitation']['ppo_actor_grad_norm']:.3f}" if m.get("imitation") else "")
+                + (f" | necto ep {m['necto']['episodes']} goals L/N {m['necto']['learner_goals']}/"
+                   f"{m['necto']['necto_goals']}" if m.get("necto") else "")
                 + (f" | saved {saved.name}" if saved else ""))
 
 

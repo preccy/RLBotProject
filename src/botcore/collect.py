@@ -17,6 +17,8 @@ Design
   version (no lag, no reuse across iterations).
 * Each environment has a fixed role map: in self-play envs every agent is a learner agent; in
   frozen-opponent envs one whole team is driven by a frozen policy and produces NO learner experience.
+* External-opponent envs (botcore.necto, 1v1): one car is driven by Necto inside the worker, from the game state,
+  with raw controls; the parent sends a placeholder for that slot and records NO learner experience for it.
 """
 
 from __future__ import annotations
@@ -34,6 +36,7 @@ from botcore.env import EnvSpec
 
 LEARNER = "learner"
 FROZEN = "frozen"
+EXTERNAL = "external"
 
 
 class CollectorError(RuntimeError):
@@ -41,7 +44,8 @@ class CollectorError(RuntimeError):
 
 
 # ----------------------------------------------------------------------------------------- worker side
-def _worker_main(conn, spec: EnvSpec, seeds: Sequence[int]) -> None:
+def _worker_main(conn, spec: EnvSpec, seeds: Sequence[int], external: Optional[Dict[int, str]] = None,
+                 necto_dir: Optional[str] = None) -> None:
     import signal
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)  # Ctrl+C is handled by the parent, which checkpoints and closes us
@@ -51,10 +55,25 @@ def _worker_main(conn, spec: EnvSpec, seeds: Sequence[int]) -> None:
         from botcore.env import build_env
         from botcore.scenarios import SCENARIO_KEY
 
-        envs = [build_env(spec, seed) for seed in seeds]
+        external = dict(external or {})  # local env index -> team ("blue"/"orange") driven by Necto
+        envs = [build_env(spec, seed, raw_controls=i in external) for i, seed in enumerate(seeds)]
         agents: List[str] = []  # known only after the first reset (the engine creates cars on reset)
         episode_len = [0] * len(envs)
         episode_stats: List[dict] = []
+        necto: Dict[int, tuple] = {}  # local env index -> (policy, agent id, other agent ids, pad permutation)
+        if external:
+            import torch
+
+            torch.set_num_threads(1)
+
+        def setup_external(i: int) -> None:
+            from botcore.necto import NectoPolicy, necto_boost_locations, pad_permutation
+
+            team = external[i]
+            me = next(a for a in agents if a.startswith(team))
+            pol = NectoPolicy(directory=necto_dir)
+            necto[i] = (pol, me, [a for a in agents if a != me],
+                        pad_permutation(envs[i], necto_boost_locations(necto_dir)))
 
         def reset_all():
             out = []
@@ -65,6 +84,10 @@ def _worker_main(conn, spec: EnvSpec, seeds: Sequence[int]) -> None:
                 elif list(env.agents) != agents:
                     raise CollectorError(f"env {i} has agents {env.agents}, expected {agents}")
                 episode_len[i] = 0
+                if i in external:
+                    if i not in necto:
+                        setup_external(i)
+                    necto[i][0].reset(len(agents))
                 out.append(np.stack([obs[a] for a in agents]))
             return np.stack(out)
 
@@ -76,7 +99,11 @@ def _worker_main(conn, spec: EnvSpec, seeds: Sequence[int]) -> None:
                 actions = payload  # int array [n_envs, n_agents]
                 obs_rows, rewards, terminated, truncated, final_obs = [], [], [], [], {}
                 for i, env in enumerate(envs):
-                    obs, rew, term, trunc = env.step({a: actions[i, j:j + 1] for j, a in enumerate(agents)})
+                    step_actions = {a: actions[i, j:j + 1] for j, a in enumerate(agents)}
+                    if i in necto:
+                        pol, me, others, perm = necto[i]
+                        step_actions[me] = pol.act(env.state, me, others, perm)  # replaces the placeholder
+                    obs, rew, term, trunc = env.step(step_actions)
                     episode_len[i] += 1
                     is_term = any(term.values())
                     is_trunc = (not is_term) and any(trunc.values())
@@ -91,9 +118,12 @@ def _worker_main(conn, spec: EnvSpec, seeds: Sequence[int]) -> None:
                             "length": episode_len[i],
                             "terminated": is_term,
                             "scoring_team": state.scoring_team if is_term else None,
+                            "necto_team": external.get(i),
                         })
                         obs = env.reset()
                         episode_len[i] = 0
+                        if i in necto:
+                            necto[i][0].reset(len(agents))
                     obs_rows.append(np.stack([obs[a] for a in agents]))
                 obs_out = np.stack(obs_rows)
                 conn.send(("ok", (obs_out, np.asarray(rewards, dtype=np.float32),
@@ -134,7 +164,8 @@ class Collector:
     """Owns the worker processes and exposes a vectorised step over all environments."""
 
     def __init__(self, spec: EnvSpec, n_workers: int, envs_per_worker: int, seed: int,
-                 start_timeout: float = 120.0):
+                 start_timeout: float = 120.0, external: Optional[Dict[int, str]] = None,
+                 necto_dir: Optional[str] = None):
         self.spec = spec
         self.n_workers = n_workers
         self.envs_per_worker = envs_per_worker
@@ -147,8 +178,10 @@ class Collector:
         try:
             for w in range(n_workers):
                 seeds = [seed + w * envs_per_worker + j for j in range(envs_per_worker)]
+                ext = {i - w * envs_per_worker: t for i, t in (external or {}).items()
+                       if w * envs_per_worker <= i < (w + 1) * envs_per_worker}
                 parent, child = self._ctx.Pipe(duplex=True)
-                proc = self._ctx.Process(target=_worker_main, args=(child, spec, seeds), daemon=True,
+                proc = self._ctx.Process(target=_worker_main, args=(child, spec, seeds, ext, necto_dir), daemon=True,
                                          name=f"botcore-worker-{w}")
                 proc.start()
                 child.close()
@@ -291,15 +324,33 @@ class ClosedTrajectory:
     truncated: bool  # True -> bootstrap from V(final_obs); False -> true terminal, next value 0
 
 
-def role_map(n_envs: int, agents: Sequence[str], n_frozen_envs: int) -> np.ndarray:
-    """[n_envs, n_agents] array of LEARNER/FROZEN.
+def external_envs(n_envs: int, n_external: int) -> Dict[int, str]:
+    """Env index -> side driven by the external bot: spread evenly, alternating orange/blue (as frozen envs)."""
+    if n_external <= 0:
+        return {}
+    idx = np.linspace(0, n_envs - 1, n_external).round().astype(int)
+    if len(set(idx.tolist())) != n_external:
+        raise ValueError(f"cannot place {n_external} external envs among {n_envs}")
+    return {int(i): ("orange" if k % 2 == 0 else "blue") for k, i in enumerate(idx)}
+
+
+def role_map(n_envs: int, agents: Sequence[str], n_frozen_envs: int,
+             external: Optional[Dict[int, str]] = None) -> np.ndarray:
+    """[n_envs, n_agents] array of LEARNER/FROZEN/EXTERNAL.
 
     Frozen-opponent envs are spread evenly; the frozen side alternates between orange and blue so the
-    learner plays both colours against frozen opponents.
+    learner plays both colours against frozen opponents. External-opponent envs (see `external_envs`) mark the
+    external side EXTERNAL.
     """
     roles = np.full((n_envs, len(agents)), LEARNER, dtype=object)
+    for env_idx, team in (external or {}).items():
+        for j, agent in enumerate(agents):
+            if agent.startswith(team):
+                roles[env_idx, j] = EXTERNAL
     if n_frozen_envs <= 0:
         return roles
+    if external:
+        raise ValueError("frozen-opponent and external-opponent envs cannot be combined")
     frozen_envs = np.linspace(0, n_envs - 1, n_frozen_envs).round().astype(int)
     for k, env_idx in enumerate(frozen_envs):
         frozen_team = "orange" if k % 2 == 0 else "blue"
@@ -380,6 +431,8 @@ def run_rollout(collector: Collector, obs: np.ndarray, roles: np.ndarray, n_step
     continue across iterations (no forced reset at iteration boundaries).
     """
     buffer = RolloutBuffer(roles, collector.agents)
+    if (roles == EXTERNAL).sum(axis=1).max(initial=0) > 1:
+        raise ValueError("at most one external car per environment")
     if (roles == FROZEN).any() and act_frozen is None:
         raise ValueError("roles contain frozen agents but no frozen policy was supplied")
     obs = obs.copy()
@@ -400,8 +453,10 @@ def run_rollout(collector: Collector, obs: np.ndarray, roles: np.ndarray, n_step
         a, lp = act_learner(sub_obs[learner])
         sub_actions[learner] = a
         sub_logp[learner] = lp
-        if (~learner).any():
-            sub_actions[~learner] = act_frozen(sub_obs[~learner])
+        frozen = sub_roles == FROZEN
+        if frozen.any():
+            sub_actions[frozen] = act_frozen(sub_obs[frozen])
+        # EXTERNAL slots keep the placeholder 0: the worker replaces it with the external bot's controls
         actions[envs] = sub_actions
         log_probs[envs] = sub_logp
         timing["inference_s"] += time.perf_counter() - t0
