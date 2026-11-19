@@ -163,3 +163,34 @@ The imitation loss kept falling throughout (0.85 -> 0.56).
    This is a finding about the base configuration, independent of Necto.
 
 As pre-registered, there is no extension, no second fraction and no further run.
+
+---
+
+## Follow-up: fresh confirmation of CTRL-13300 (plan written and committed before any match is played)
+CTRL-13300 was the best of three checkpoints in the post-hoc scan: 0.688 against IL-12900 on 20 pairs, offsets
+19,400-19,419. Picking the best of three on 20 pairs biases that number upward, so this follow-up repeats the test
+on fresh seeds only. It is evaluation only: no training.
+
+**Identity.** `runs/s5-ctrl/checkpoints/iter_013300` (COMPLETE marker; policy_version 13300; 980,582,400 learner
+timesteps, which is the start plus 400 x 73,728). Export `runs/s5-ctrl/exports/iter_013300`, weights
+`0e3fd5323e0a`, identical to a fresh re-export from the checkpoint. IL-12900 is `runs/reference/S4I-iter12900`,
+weights `b1dbba3f4585`.
+
+**Seeds.** I scanned all 2,344 result files under `runs/`. The highest evaluation offset ever used is 19,419. The
+offsets below appear nowhere.
+* Head-to-head: CTRL-13300 vs IL-12900, 100 colour-swapped pairs, offsets 20,000-20,099. Both sides sample their
+  actions. Report W-D-L, score and the pair-bootstrap 95% CI.
+* Against Necto: CTRL-13300 and IL-12900 each play the same 40 colour-swapped pairs, offsets 20,200-20,239, with
+  the same adapter and rules as before. Report the paired difference (13300 minus 12900) in goal margin, goals
+  scored and goals conceded, with a bootstrap 95% CI over pairs.
+
+**Decision rules (fixed now).**
+1. 13300 **qualifies** only if the head-to-head CI lower bound is > 0.5. If so, the standing regression checks run:
+   40 pairs against R0 and against M2REF (seeds 0-39); each score must be >= 0.45.
+2. **Clear regression against Necto** means the paired goal-margin CI upper bound is < 0. If 13300 qualifies but
+   regresses clearly against Necto, IL-12900 stays deployed and the trade-off is reported.
+3. Otherwise, a qualifying 13300 becomes best_verified and is installed only after a fault-free 4-match All-Star
+   series. IL-12900 moves to `bot/model.previous` and keeps its read-only reference copy.
+4. If 13300 does not qualify, IL-12900 stays best_verified and deployed.
+
+This is the only candidate. The experiment ends after this comparison.
