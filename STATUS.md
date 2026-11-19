@@ -1,9 +1,9 @@
 # Project status
 
-Last updated 2026-11-19 (Necto-mix experiment). Nothing here implies a rank or Rocket League skill level; all match results
+Last updated 2026-11-19 (Necto-mix experiment, CTRL-13300 installed). Nothing here implies a rank or Rocket League skill level; all match results
 are in RocketSim against random or earlier versions of the same lineage unless stated otherwise.
 
-## Latest experiment: Necto-mix (docs/EXPERIMENT_NECTO_MIX.md), no change to the deployed bot
+## Current state: Necto-mix experiment + CTRL-13300 confirmation (docs/EXPERIMENT_NECTO_MIX.md)
 
 * Two arms, each 1,000 iterations (73.7M learner transitions) from the IL-12900 checkpoint, one seed each:
   * CTRL continues the IL configuration;
@@ -15,9 +15,16 @@ are in RocketSim against random or earlier versions of the same lineage unless s
   NECTO 0.325 [0.260, 0.385], CTRL 0.105 [0.065, 0.150]. Both arms beat R0 and M2REF 80-0-0.
 * Post-hoc: CTRL checkpoints swing between 0.23 and 0.69 vs IL-12900 (20 pairs each). Dodges per minute went from
   about 3 to about 9. Continuing this configuration is unstable.
-* **Promotion:** none. IL-12900 (`b1dbba3f4585`) remains best_verified and installed in `bot/model`.
+* **Promotion from the finals:** none.
+* **Follow-up confirmation of CTRL-13300** (best of a post-hoc 3-checkpoint scan; fresh seeds only):
+  * vs IL-12900: 122-1-77, 0.6125 [0.540, 0.680] on 100 pairs;
+  * vs Necto, paired with 12900 on 40 pairs: margin +0.34 [-0.50, +1.21] (no clear change), scored -0.10, conceded
+    -0.44;
+  * R0 and M2REF both 1.000; All-Star 4-0-0 (40-2), runner clean.
+* **best_verified = `runs/s5-ctrl` iteration 13,300** (`0e3fd5323e0a`, copies `runs/reference/S5C-iter13300[-checkpoint]`),
+  installed in `bot/model`. IL-12900 (`b1dbba3f4585`) is in `bot/model.previous`. Not yet played against a human.
 
-## Current state (imitation pilot, docs/EXPERIMENT_IL_PILOT.md)
+## Previous state (imitation pilot, docs/EXPERIMENT_IL_PILOT.md)
 
 * **best_verified = `runs/s4-il` iteration 12,900** (weights `b1dbba3f4585`; frozen copy `runs/reference/S4I-iter12900`),
   installed in `bot/model`; S3C-iter11900 in `bot/model.previous`. It is 11900 + 1,000 iterations with an imitation

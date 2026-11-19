@@ -194,3 +194,46 @@ offsets below appear nowhere.
 4. If 13300 does not qualify, IL-12900 stays best_verified and deployed.
 
 This is the only candidate. The experiment ends after this comparison.
+
+### Follow-up results (2026-11-19; `runs/necto-mix-eval/confirm-13300/`, `scripts/confirm_13300.py`)
+Identity was checked by the script before play: CTRL-13300 `0e3fd5323e0a`, IL-12900 `b1dbba3f4585`. All of our
+policies sampled their actions.
+
+**Head-to-head, CTRL-13300 vs IL-12900** (100 fresh colour-swapped pairs, offsets 20,000-20,099):
+* 122-1-77, score **0.6125 [0.540, 0.680]** (pair bootstrap). Qualifies: the lower bound is > 0.5.
+* Goals 902-731; goal difference +0.86 per match [+0.47, +1.26].
+* Own goals per match: 0.475 for 13300, 0.48 for 12900.
+
+**Against Necto** (the same 40 fresh pairs for both, offsets 20,200-20,239):
+| policy | W-D-L | goals for-against | goal margin per match [95% CI] |
+|---|---|---|---|
+| CTRL-13300 | 0-0-80 | 183-769 | -7.33 [-7.93, -6.69] |
+| IL-12900 | 0-0-80 | 191-804 | -7.66 [-8.25, -7.09] |
+
+Paired, 13300 minus 12900, per match:
+* goal margin **+0.34 [-0.50, +1.21]**;
+* goals scored -0.10 [-0.50, +0.31];
+* goals conceded -0.44 [-1.08, +0.18].
+
+There is no clear regression (the upper bound is not < 0), and no gain is shown either. The head-to-head gain is not
+shown to carry over to Necto. Dodges per minute against Necto: 5.1 for 13300, 2.7 for 12900.
+
+**Standing promotion checks:**
+* `check_promotion`: no problems.
+* Regression checks: R0 1.000 and M2REF 1.000 (40 pairs each, seeds 0-39).
+* All-Star series (`runs/allstar/ctrl-13300/`, 4 offline matches, not a rank estimate): **4-0-0 (40-2)**.
+  * BotCore own goals 0.
+  * Runner clean: 0 fallback ticks, 0 policy faults, 0 unexpected or missed kickoff resets.
+  * Callback p99 at most 1.6 ms; no callback over 6 ms.
+
+**Outcome.**
+* CTRL-13300 is best_verified (`runs/s5-ctrl/pointers.json`) and is installed in `bot/model` (`0e3fd5323e0a`).
+* IL-12900 is in `bot/model.previous` and keeps its read-only copies, `runs/reference/S4I-iter12900[-checkpoint]`.
+* New read-only copies: `runs/reference/S5C-iter13300[-checkpoint]`.
+
+Caveats:
+* One training seed.
+* 13300 was found by a 3-checkpoint scan, and only its confirmation used fresh seeds.
+* The strength of this configuration oscillates between checkpoints: 13900 scored 0.105 against the same opponent.
+
+The experiment ends here.
