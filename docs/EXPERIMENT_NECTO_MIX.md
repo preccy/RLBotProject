@@ -18,23 +18,27 @@ seed. Rewards, imitation term and demonstrations (coef 0.02, `runs/demos/s1.npz`
 (sampled), scenario mixture, architecture, action table and PPO settings are identical.
 * CTRL `runs/s5-ctrl`, `configs/experiments/necto-control.toml`: the configuration that produced IL-12900,
   continued. 12 workers x 6 envs = 72 self-play envs = 144 learner slots.
-* NECTO `runs/s5-necto`, `configs/experiments/necto-exp.toml`: identical plus `[self_play] necto_fraction = 0.15`.
-  That gives 13 workers x 6 envs = 78 envs. 12 envs (15.4%) put the learner against frozen Necto V1, with Necto's
-  side alternating orange/blue across envs; the other 66 are normal mirror self-play. Learner slots are
-  66 x 2 + 12 x 1 = 144, the same as CTRL.
+* NECTO `runs/s5-necto`, `configs/experiments/necto-exp.toml`: identical plus `[self_play] necto_fraction = 0.13`.
+  That gives 11 workers x 7 envs = 77 envs. 10 envs (13.0%) put the learner against frozen Necto V1, with Necto's
+  side alternating orange/blue across envs; the other 67 are normal mirror self-play. Learner slots are
+  67 x 2 + 10 x 1 = 144, the same as CTRL.
   * Resumed with `--allow-config-change`; the only learning-relevant diff is `necto_fraction`.
   * Necto runs inside the workers from the game state (`src/botcore/necto.py`, the adapter checked in
     docs/BENCH_NECTO.md). Its car is an EXTERNAL slot and never enters PPO.
   * Necto envs use the same scenario mixture (kickoff 50%, open play, shot, save, ...); Necto plays argmax, as
     shipped.
   * The env share is fixed; the actual episode share depends on episode lengths and is logged each iteration.
+  * **Amendment after the smoke check, before any measured training:** the first design (12 of 78 envs, 15.4%)
+    gave Necto 19% of episodes, because Necto envs end sooner. Ten Necto envs is the closest layout to the
+    requested 15% of episodes that keeps 144 learner slots. The smoke runs' episode shares were 19.0% and 19.3%
+    (noisy, 512-847 episodes); the full run's share is reported.
 * **Budget:** 1,000 iterations per arm (target 13,900). That is 73,728 learner transitions per iteration in both
   arms, so 73,728,000 learner transitions per arm, the same as each IL-pilot arm. Only learner transitions count.
   The PPO schedule is also identical: 3 batches of 24,576 x 2 epochs = 6 updates per iteration.
-* The env seeds differ between arms by construction (78 vs 72 envs).
+* The env seeds differ between arms by construction (77 vs 72 envs).
 * The arms run one after the other, with Rocket League closed.
 
-## Smoke check (10 iterations in `runs/necto-smoke` from the same checkpoint; discarded, neither arm starts from it)
+## Smoke check (10 iterations in `runs/necto-smoke`, plus 6 in `runs/necto-smoke2` for the amended layout; from the same checkpoint; discarded, neither arm starts from them)
 Pass requires all of:
 * no worker error;
 * Necto envs finish episodes, and Necto scores most goals in them (the benchmark had 12900 conceding 81%);

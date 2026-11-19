@@ -1,4 +1,4 @@
-# Necto-mix experiment NECTO arm (docs/EXPERIMENT_NECTO_MIX.md): the configuration that produced IL-12900, plus 12 of 78 envs vs frozen Necto V1 (13 workers x 6 envs keeps 144 learner slots = 73,728 learner steps/iteration).
+# Necto-mix experiment NECTO arm (docs/EXPERIMENT_NECTO_MIX.md): the configuration that produced IL-12900, plus 10 of 77 envs vs frozen Necto V1 (11 workers x 7 envs keeps 144 learner slots = 73,728 learner steps/iteration).
 
 [run]
 name = "s5-necto"
@@ -60,13 +60,13 @@ standardize_returns = true
 reward_clip = 10.0
 
 [collect]
-n_workers = 13
-envs_per_worker = 6
+n_workers = 11
+envs_per_worker = 7
 rollout_steps = 512
 
 [self_play]
 frozen_opponent_fraction = 0.0
-necto_fraction = 0.15  # round(0.15 x 78) = 12 envs, Necto side alternating orange/blue
+necto_fraction = 0.13  # round(0.13 x 77) = 10 envs (about 15-16% of episodes), Necto side alternating orange/blue
 snapshot_every_iterations = 40
 
 [checkpoint]
