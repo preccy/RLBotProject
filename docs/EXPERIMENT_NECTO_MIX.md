@@ -79,3 +79,87 @@ report; no setting is tuned.
 ---
 
 ## Results
+
+Run 2026-11-19. Raw outputs: `runs/necto-mix-eval/` (`necto.json`, `decision.json`, one report per comparison).
+Our bots sampled their actions in every match; Necto played argmax.
+
+### Smoke check: passed
+* `runs/necto-smoke` (12/78 layout, 10 iterations): no worker error. Necto scored 130 of the 161 goals in its envs.
+  Exactly 73,728 learner steps per iteration; KL <= 0.0024; about 17,700 learner steps/s.
+* `runs/necto-smoke2` (amended 10/77 layout, 6 iterations): same checks passed; episode share 19.3%.
+* Both arms restarted from `runs/reference/S4I-iter12900-checkpoint`; nothing from the smoke runs was used.
+
+### Training (1,000 iterations each, 73,728,000 learner transitions each)
+| | CTRL | NECTO |
+|---|---|---|
+| learner steps/s (mean) | 22,600 | 18,400 |
+| approx_kl max | 0.0035 | 0.0033 |
+| NaN / non-finite losses | none | none |
+| entropy start -> end | 2.78 -> 2.71 | 2.77 -> 2.68 |
+| imitation loss start -> end | 0.85 -> 0.56 | 0.85 -> 0.56 |
+
+* Resume was continuous: the first 20 CTRL iterations match the last 20 of `runs/s4-il` (entropy 2.777 vs 2.778,
+  imitation loss 0.849 vs 0.864, same KL and clip fraction).
+* Necto envs in NECTO: 15,801 of 83,022 finished episodes = **19.0%** (the target was 15%; the fixed env share is 13%,
+  see the amendment above). In those episodes the learner scored 2,723 goals and Necto 13,051 (17% for the learner).
+  There was no trend: 240/1,353 in the first 100 iterations, 200/1,362 in the last 100.
+
+### 1. Against Necto (40 colour-swapped pairs, offsets 18,100-18,139, 80 matches per policy)
+| policy | W-D-L | goals for-against | goal margin per match [95% CI] |
+|---|---|---|---|
+| CTRL-13900 | 0-0-80 | 102-1,057 | -11.94 [-12.64, -11.26] |
+| NECTO-13900 | 0-0-80 | 92-980 | -11.10 [-11.78, -10.49] |
+| IL-12900 (reference) | 1-0-79 | 209-825 | -7.70 [-8.41, -6.94] |
+
+Paired, NECTO minus CTRL, per match:
+* goal margin **+0.84 [-0.04, +1.74]**: **inconclusive** by the pre-registered rule (lower bound not > 0);
+* goals scored -0.13 [-0.41, +0.16] (no difference detected);
+* goals conceded -0.96 [-1.80, -0.15] (NECTO conceded fewer).
+
+Both finals did worse against Necto than their common start. Paired against IL-12900:
+* NECTO: margin -3.40 [-4.44, -2.38]; scored -1.46, conceded +1.94;
+* CTRL: margin -4.24 [-5.23, -3.20]; scored -1.34, conceded +2.90.
+
+### 2. Transfer
+* NECTO vs CTRL head-to-head (100 pairs, offsets 19,000+): 130-0-70, **0.650 [0.585, 0.720]**; goals 881-671.
+  By the pre-registered rule NECTO is **better** than CTRL.
+* Against frozen IL-12900 (100 pairs, offsets 19,200+, same seeds for both arms), both arms regressed:
+  * CTRL: 21-0-179, **0.105 [0.065, 0.150]**, goal diff -3.26 per match;
+  * NECTO: 65-0-135, **0.325 [0.260, 0.385]**, goal diff -1.24 per match.
+* Regression references (40 pairs, seeds 0-39): both arms 80-0-0 vs R0 and vs M2REF (pass).
+
+### Promotion
+Neither final qualifies: CI lower bounds against IL-12900 are 0.065 (CTRL) and 0.260 (NECTO), not > 0.5.
+**IL-12900 stays best_verified and deployed.** `bot/model` and `runs/reference/S4I-iter12900` both still hash
+`b1dbba3f4585`. No All-Star series was run, because nothing was promoted.
+
+### Post-hoc diagnostic (not pre-registered; it does not change any verdict)
+Both finals lost to their own start, so the export/eval path was checked on intermediate CTRL checkpoints
+(20 pairs each vs IL-12900, offsets 19,400+, `runs/necto-mix-eval/posthoc/`):
+
+| CTRL checkpoint | score vs IL-12900 [95% CI] |
+|---|---|
+| 12950 | 0.350 [0.175, 0.525] |
+| 13300 | 0.688 [0.500, 0.850] |
+| 13600 | 0.225 [0.100, 0.350] |
+| 13900 (100 pairs) | 0.105 [0.065, 0.150] |
+
+The path is not broken: 13300 beat IL-12900. The continued configuration swings strongly between checkpoints, and
+its final snapshot landed in a weak phase. Behaviour also moved away from IL-12900 in the Necto matches:
+* dodges per minute: about 3.0 for IL-12900, 8.5 for CTRL, 9.4 for NECTO;
+* touches per minute: 26.9, 14.4 and 18.9 respectively.
+
+The imitation loss kept falling throughout (0.85 -> 0.56).
+
+### Conclusions
+1. **Against Necto: inconclusive.** NECTO's margin was +0.84 goals per match better than CTRL's, but the CI touches 0.
+   Any difference came from conceding fewer goals (-0.96 [-1.80, -0.15]), not from scoring more. Neither arm got
+   closer to Necto than IL-12900 already was; both got further away.
+2. **Transfer: by the pre-registered rule, NECTO is better than CTRL** (0.650 [0.585, 0.720]). That is not an
+   improvement over the bot we already have. NECTO lost to IL-12900 (0.325), only less badly than CTRL (0.105).
+   Given the checkpoint-to-checkpoint swings above, one final snapshot per arm cannot separate a Necto effect from
+   where each run happened to stop. This is one seed per arm.
+3. Continuing the IL-12900 configuration for 1,000 more iterations did not hold its strength at the final snapshot.
+   This is a finding about the base configuration, independent of Necto.
+
+As pre-registered, there is no extension, no second fraction and no further run.

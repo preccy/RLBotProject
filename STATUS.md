@@ -1,7 +1,21 @@
 # Project status
 
-Last updated 2026-11-18 (imitation pilot). Nothing here implies a rank or Rocket League skill level; all match results
+Last updated 2026-11-19 (Necto-mix experiment). Nothing here implies a rank or Rocket League skill level; all match results
 are in RocketSim against random or earlier versions of the same lineage unless stated otherwise.
+
+## Latest experiment: Necto-mix (docs/EXPERIMENT_NECTO_MIX.md), no change to the deployed bot
+
+* Two arms, each 1,000 iterations (73.7M learner transitions) from the IL-12900 checkpoint, one seed each:
+  * CTRL continues the IL configuration;
+  * NECTO gives 13% of envs (19.0% of episodes) to frozen Necto V1.
+* **Against Necto** (40 pairs): both 0-0-80. Paired margin NECTO-CTRL +0.84 [-0.04, +1.74]: **inconclusive**.
+  Goals scored -0.13 [-0.41, +0.16], goals conceded -0.96 [-1.80, -0.15]. Both are worse than IL-12900 against
+  Necto: -11.1 and -11.9 goals per match vs -7.7.
+* **Transfer:** NECTO vs CTRL 0.650 [0.585, 0.720], so "better" by the rule. But both regressed against IL-12900:
+  NECTO 0.325 [0.260, 0.385], CTRL 0.105 [0.065, 0.150]. Both arms beat R0 and M2REF 80-0-0.
+* Post-hoc: CTRL checkpoints swing between 0.23 and 0.69 vs IL-12900 (20 pairs each). Dodges per minute went from
+  about 3 to about 9. Continuing this configuration is unstable.
+* **Promotion:** none. IL-12900 (`b1dbba3f4585`) remains best_verified and installed in `bot/model`.
 
 ## Current state (imitation pilot, docs/EXPERIMENT_IL_PILOT.md)
 
