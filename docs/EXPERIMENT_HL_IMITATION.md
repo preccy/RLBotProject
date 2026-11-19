@@ -203,3 +203,78 @@ As instructed, a failed initial check stops the pilot. No arm was trained and CT
 perspective test that separates player from colour would compare each player's correlation with itself in raw
 physics, or swap colours by mirroring a whole match. It was not pre-registered, so it has not been substituted
 here.
+
+---
+
+## Replacement check (requested after the C2 failure; written and committed before it is run)
+The C2 result above stands and stays in the report. C2's team-difference threshold mixed two things: the
+converter's handling of the two colours, and the fact that each colour is a different human. The replacement
+separates the two.
+
+### How the original pooled C2 scores were computed (for reproducibility)
+* Data: training-split matches 0-3, converted as above. Both observation and analog-steer values are independent of
+  the stick scheme.
+* Pairs: every pair of usable blocks (i, j) of the same car with j starting exactly 8 ticks after i ("usable" means
+  after the converter's exclusions, before the loader drops `press_inflight`/`dodge_lost`).
+* Kept: `self.on_ground` = 1 in both observations, and local forward speed at i
+  (`self.lin_vel_local[0]` x `LIN_VEL_SCALE`) > 300 uu/s.
+* x is the block mean of the converter's analog steer over block i. y is `self.ang_vel_local[2]` in block j's
+  observation.
+* Pooling: all pairs of all blue cars of the 4 matches form one sample (n = 6,128), all orange cars the other
+  (n = 6,166). Each pooled sample therefore mixes 4 different players.
+* r is Pearson's correlation: blue 0.9099, orange 0.7362, difference 0.1737. The new script recomputes and prints
+  these numbers.
+
+### R1 rotation equivalence (same player, same frames)
+* **Matches:** training-split matches 4, 5 and 6, never checked before. The 15 held-out matches stay untouched.
+* **Transform** of every ReplayFrame before conversion: rotate the world 180 degrees about the vertical axis and swap
+  teams.
+  * Positions, linear and angular velocities of both cars and the ball: (x, y, z) -> (-x, -y, z).
+  * Orientations: R -> diag(-1, -1, 1) R.
+  * `team_num` 0 <-> 1.
+  * Boost pad timers: permuted to the rotated pad positions. The permutation is computed from BOOST_LOCATIONS; it
+    equals reversal.
+  * Unchanged: car-relative quantities (flip torque, flags, timers, wheel contacts), controls, update ages. A
+    rotation keeps the player's own left/right.
+* **Rebuild:** the original and the rotated version both go through the unchanged converter (`hlconv.extract`,
+  nearest scheme, including the RocketSim reproduction filter).
+* **Comparison**, keyed by (player, block tick):
+  * the set of usable blocks;
+  * the flags `press_inflight`, `dodge_lost`, `approx_dir` and `dodge`;
+  * mapped label rows and `prev_action` rows;
+  * equivalence masks;
+  * the 276 team-relative observation values;
+  * the per-player steering metric (the C2 statistic computed per player).
+* **Pass:**
+  * every discrete item agrees exactly;
+  * every observation value within 1e-4 (absolute, normalised units);
+  * each per-player steering metric within 1e-4.
+  * A usable-set difference counts as **borderline**, not a failure, only if the reproduction error that set it lies
+    within 1 uu / 0.1 degree of the 150 uu / 20 degree threshold on both sides (RocketSim float noise). Such cases
+    are counted and reported.
+* **On failure:** report the first divergent block (match, player, tick) and the first divergent item or feature.
+
+### R2 absolute steering fidelity per player (same matches 4-6, original orientation)
+**Aligned grounded segments:** block start frame a where:
+* the player has a true replay update at a and at a + 4 (16 ticks later);
+* the car is grounded at both;
+* forward speed > 300 uu/s;
+* the blocks at a and a + 2 (and the neighbours used for shifting) are usable;
+* no jump label.
+
+From the true state at a, RocketSim re-simulates 16 ticks. The player uses (i) the converter's raw controls,
+(ii) the two mapped labels, (iii) the labels shifted one block earlier, (iv) one block later. The opponent uses raw
+controls throughout. The result is compared with the replay's true state at a + 4.
+
+**Pass, for every player separately:**
+* mapped labels: median position error <= 40 uu and median heading error <= 5 degrees against the replay;
+* timing: the median heading error with correctly aligned labels is lower than with either shifted version;
+* inputs: the per-player C2 statistic from our observations is within 0.15 of the same statistic from raw replay
+  physics. Raw physics is the converter's car state at the next block's start frame, angular velocity projected on
+  the car's up axis.
+
+Raw-control errors are reported as the converter's own floor.
+
+**If R1 and R2 both pass,** the pilot proceeds exactly as planned above: label scheme nearest (from C3), 1,000
+iterations per arm, the predeclared screening and confirmation, fresh-seed evaluations and the existing promotion
+rules. If either fails, the pilot stops and the first divergence is reported.
