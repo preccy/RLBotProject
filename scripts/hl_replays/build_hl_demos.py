@@ -30,6 +30,11 @@ def one(job):
     c = int(np.where(A["team"] == retained_team)[0][0])
     sel = d["car"] == c
     out = {k: d[k][sel] for k in KEYS}
+    for k in ("approx_dir", "dodge_lost", "press_inflight", "dodge"):
+        out[k] = out[k].astype(bool)  # empty arrays come back as float
+    for k in ("label", "prev", "frame", "tick"):
+        out[k] = out[k].astype(np.int64)
+    out["press_offset"] = out["press_offset"].astype(np.float64)
     use = ~out["press_inflight"] & ~out["dodge_lost"]
     cnt = {"index": index, "retained_team": "blue" if retained_team == 0 else "orange",
            "blocks_postkickoff_both_cars": st["blocks_postkickoff"], "blocks_after_exclusions": int(sel.sum()),
