@@ -24,6 +24,13 @@ are in RocketSim against random or earlier versions of the same lineage unless s
 * **best_verified = `runs/s5-ctrl` iteration 13,300** (`0e3fd5323e0a`, copies `runs/reference/S5C-iter13300[-checkpoint]`),
   installed in `bot/model`. IL-12900 (`b1dbba3f4585`) is in `bot/model.previous`. Not yet played against a human.
 
+* **Live benchmark vs Beast from the East** (docs/BENCH_BEAST.md; RLBot v5 botpack; 6 offline matches, not a rank
+  estimate):
+  * 6-0-0, goals 44-1, shots 66-2; runner clean;
+  * Beast is not competitive practice;
+  * 13300's attacks most often stall in a low 50/50 near Beast's goal, usually with 13300 on zero boost (it spends
+    65-77% of play at 0 boost).
+
 ## Previous state (imitation pilot, docs/EXPERIMENT_IL_PILOT.md)
 
 * **best_verified = `runs/s4-il` iteration 12,900** (weights `b1dbba3f4585`; frozen copy `runs/reference/S4I-iter12900`),

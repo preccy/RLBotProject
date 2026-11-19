@@ -1,0 +1,25 @@
+#:schema https://rlbot.org/schemas/match.json
+# 1v1: BotCore (blue) vs Beast from the East (official RLBot v5 botpack, as downloaded by the RLBot GUI),
+# standard 5-minute match. Used by scripts/beast_series.py. Offline only.
+[rlbot]
+launcher = "Steam"
+auto_start_agents = true
+wait_for_agents = true
+
+[match]
+game_mode = "Soccar"
+game_map_upk = "Stadium_P"
+skip_replays = true
+enable_state_setting = false
+existing_match_behavior = "Restart"
+
+[mutators]
+match_length = "FiveMinutes"
+
+[[cars]]
+config_file = "bot.toml"
+team = 0
+
+[[cars]]
+config_file = "C:/Users/TomPr/AppData/Local/RLBot5/bots/bob_build_x86_64-windows/Beast/beast.bot.toml"
+team = 1
