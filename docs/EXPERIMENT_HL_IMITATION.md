@@ -86,7 +86,21 @@ is measured. Behaviour is described, with no threshold.
 * **C5 inspection** (descriptive): short passages of grounded steering, boost use and ordinary dodges, both
   perspectives, printed with analog controls, mapped rows and the car's response.
 
-**Label-check outcome and chosen scheme:** _(filled in before training)_
+**Amendment during converter development, before the checks were run.** Building the converter on two training
+matches showed only 102 of 122 dodges keeping a fresh jump label within one block. There were two causes, both
+fixed:
+1. **The existing jump rule merged fast dodges into one hold.** High-level players hold the first jump about 12 ticks,
+   release for one replay frame (4 ticks), then press. The re-press then starts on the next block's first tick, and
+   `JumpMachine` reads it as a continued hold. This contradicts its own documented intent, that press-release-press
+   patterns survive. The replay conversion uses `HLJumpMachine`: while holding, a block keeps the jump bit only if
+   the jump is still held at the block's end. The KBM demos and `build_demos.py` are unchanged.
+2. **The dodge-kept count could not judge some dodges.** It counted a dodge as lost when the block after it was
+   excluded for another reason. It now judges only dodges inside three contiguous usable blocks.
+
+The thresholds above are unchanged.
+
+**Label-check outcome and chosen scheme:** **FAILED (C2). The pilot stopped here: no training and no
+evaluation.** Details are under Results.
 
 ## Arms (one seed each, run one after the other, Rocket League closed)
 Both arms resume from the same full checkpoint `runs/reference/S5C-iter13300-checkpoint` (read-only) with the same
@@ -137,3 +151,55 @@ in training.
 ---
 
 ## Results
+
+Run 2026-11-19. Selection `external/hlrlrd/selection.json` (git-ignored data). Checks `scripts/hl_replays/checks.py`,
+output `runs/hl-check/checks.json` and `runs/hl-check/passages.txt`.
+
+### Selection
+* 1,372 files screened by metadata; 245 were eligible full-length ranked duels.
+* 100 selected: 36 maps, dates 2021-08 to 2025-08, 200 distinct players. 15 are held out.
+* 250 MB downloaded (the selected files only).
+
+### Initial checks (training-split matches 0-3, both perspectives)
+| Check | Result | Pass? |
+|---|---|---|
+| C1 conversion | 25,899 blocks, 276 finite features, 0.007% of values outside the widened KBM-demo range | pass |
+| C2 steer vs next yaw rate | blue 0.910, orange 0.736 (both > 0.5, same sign as the KBM demos); **difference 0.174 >= 0.15** | **FAIL** |
+| C2 throttle vs forward acceleration | blue 0.633, orange 0.400 (both > 0.3) | pass |
+| C2 causality | corrupting every later frame left 60/60 observations bit-identical | pass |
+| C3 grounded steering, 0.5 s re-simulation vs raw controls | nearest: median 14.1 uu / 2.4 deg (p90 47 uu / 7.4 deg). Dithered: 18.5 uu / 3.2 deg. **Nearest chosen** | pass |
+| C3 boost | label bit matches block majority 99.8%; matches the replay's boost consumption 99.2% | pass |
+| C3 dodges | direction within 45 deg in 369/369 (median 10 deg); fresh jump label kept 342/342 | pass |
+| C4 coverage | 94.0% of post-kickoff blocks usable (reproduction excluded 4.0%) | pass |
+
+The converter's own controls reproduce the replay between true updates to a median 15-17 uu and 1.4 deg. About 1%
+of segments exceed 150 uu or 20 deg.
+
+### The concrete failure (C2)
+Steer vs next-block yaw-rate correlation, per match and car:
+
+| Match | Car | Our observations | Raw replay physics (no obs builder) | Median speed |
+|---|---|---|---|---|
+| 0 | blue | 0.923 | 0.947 | 1,384 |
+| 0 | orange | 0.763 | 0.865 | 1,410 |
+| 1 | blue | 0.922 | 0.945 | 1,459 |
+| 1 | orange | 0.757 | 0.841 | 1,484 |
+| 2 | blue | **0.658** | 0.770 | 1,072 |
+| 2 | orange | 0.948 | 0.959 | 1,318 |
+| 3 | blue | 0.922 | 0.947 | 1,340 |
+| 3 | orange | **0.659** | 0.760 | 1,553 |
+
+* **It is not tied to colour.** In match 2 blue is the low one, so the mirroring of the orange perspective is not
+  the cause.
+* **It is not replay staleness.** Both cars get true updates on 42-46% of frames, with the same mean snapshot age
+  (about 25 ms) in every match.
+* **It is present in the raw physics.** One player per match couples steer to yaw rate less than the other (0.95 vs
+  0.77-0.87). This is a difference between the two humans' driving. Each "team" in C2 is a different person, so the
+  0.15 team-difference threshold measured player style as well as perspective handling.
+* **Our observations do lower the correlation.** They are 0.02-0.11 below the raw physics, most for the lower player.
+  This is the causal snapshot: the next block's state is the latest true update, up to 0.1 s old and extrapolated.
+
+As instructed, a failed initial check stops the pilot. No arm was trained and CTRL-13300 stays deployed. A
+perspective test that separates player from colour would compare each player's correlation with itself in raw
+physics, or swap colours by mirroring a whole match. It was not pre-registered, so it has not been substituted
+here.
